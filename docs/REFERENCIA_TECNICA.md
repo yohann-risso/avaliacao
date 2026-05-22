@@ -76,7 +76,8 @@ Menu:
 | `rules.py` | Regras de familia de cargo, sugestao de taxa de erros e calculo de pagamento semanal. |
 | `utils.py` | Formatacao BR, datas, competencia, semanas operacionais e rateios mensais. |
 | `theme.py` | CSS global, cabecalhos, cards, chips, paineis de progresso, stepper lateral e avisos. |
-| `ui_auth.py` | Primeiro administrador, login, sessao e permissao de admin. |
+| `ui_auth.py` | Primeiro administrador, login, sessao e permissao de admin. |  
+| `ui_users.py` | Cadastro e gestao de usuarios de login, com vinculo ao avaliador. |
 | `ui_employees.py` | Cadastro, listagem, edicao, ativacao/desativacao de funcionarios. |
 | `ui_weekly.py` | Avaliacao semanal individual, avaliacao em massa, log de erros, justificativas e historico. |
 | `ui_monitor.py` | Avaliacao mensal de monitores, justificativas e previa financeira. |
@@ -144,12 +145,13 @@ Campos principais:
 - `username`;
 - `password_hash`;
 - `role`;
+- `evaluator_employee_id`;
 - `active`;
 - `last_login_at`;
 - `created_at`;
 - `updated_at`.
 
-No PostgreSQL, `username` e protegido por indice unico em `LOWER(username)`. No SQLite de testes, a coluna usa unicidade case-insensitive. Senhas usam PBKDF2 SHA-256 com salt e `390_000` iteracoes.
+No PostgreSQL, `username` e protegido por indice unico em `LOWER(username)`. No SQLite de testes, a coluna usa unicidade case-insensitive. Senhas usam PBKDF2 SHA-256 com salt e `390_000` iteracoes. `evaluator_employee_id` aponta para o funcionario ativo de coordenacao/supervisao usado como avaliador padrao do login.
 
 #### `employees`
 
@@ -252,6 +254,7 @@ O salvamento tambem usa upsert.
 `init_db()` cria indices para consultas comuns:
 
 - `idx_login_users_active`;
+- `idx_login_users_evaluator_employee`;
 - `idx_employees_active_role`;
 - `idx_weekly_eval_employee_week`;
 - `idx_weekly_eval_employee_week_desc`;

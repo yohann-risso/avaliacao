@@ -7,9 +7,10 @@ from db import (
     normalize_month_label,
     refresh_employee_active_statuses,
 )
-from theme import apply_kaisan_admin_theme, render_sidebar_process
+from theme import apply_kaisan_admin_theme, render_sidebar_navigation
 from ui_auth import current_user, is_admin_user, render_user_sidebar, require_login
 from ui_employees import page_employees
+from ui_users import page_users
 from ui_weekly import page_weekly
 from ui_monitor import render_monitor_page
 from ui_report import build_closing_check_tables, render_report_page
@@ -21,6 +22,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="auto",
 )
+
+NAV_QUERY_KEY = "tela"
 
 
 @st.cache_data(ttl=45, show_spinner=False)
@@ -36,6 +39,8 @@ def _sidebar_snapshot(
     active_count = 0
     monitor_count = 0
     leadership_count = 0
+    user_count = 0
+    linked_user_count = 0
     expected = 0
     done = 0
     issues = 0
@@ -56,6 +61,19 @@ def _sidebar_snapshot(
             active_count = int(row.get("active_count", 0) or 0)
             monitor_count = int(row.get("monitor_count", 0) or 0)
             leadership_count = int(row.get("leadership_count", 0) or 0)
+
+        users = fetch_df(
+            """
+            SELECT
+                COUNT(*) AS user_count,
+                SUM(CASE WHEN evaluator_employee_id IS NOT NULL THEN 1 ELSE 0 END) AS linked_user_count
+            FROM login_users
+            """
+        )
+        if not users.empty:
+            row = users.iloc[0]
+            user_count = int(row.get("user_count", 0) or 0)
+            linked_user_count = int(row.get("linked_user_count", 0) or 0)
 
         year, month_num = map(int, month.split("-"))
         weeks_iso = [w.isoformat() for w in weeks_for_competencia(year, month_num)]
@@ -80,17 +98,22 @@ def _sidebar_snapshot(
             "detail": f"{active_count} ativos",
             "tone": employees_tone,
         },
-        "2. Avaliação Semanal": {
+        "2. Usuários": {
+            "title": "Usuários",
+            "detail": f"{linked_user_count}/{user_count} vinculados",
+            "tone": "success" if user_count and linked_user_count == user_count else ("warning" if user_count else "neutral"),
+        },
+        "3. Avaliação Semanal": {
             "title": "Avaliações",
             "detail": f"{coverage}% cobertura",
             "tone": weekly_tone,
         },
-        "3. Monitoria Mensal": {
+        "4. Monitoria Mensal": {
             "title": "Monitoria",
             "detail": f"{monitor_count} monitores",
             "tone": monitor_tone,
         },
-        "4. Relatório Mensal": {
+        "5. Relatório Mensal": {
             "title": "Relatório",
             "detail": f"{issues} pendências",
             "tone": report_tone,
@@ -100,6 +123,7 @@ def _sidebar_snapshot(
     steps = []
     for option in menu_options:
         step = dict(step_defs.get(option, {"title": option, "detail": "", "tone": "neutral"}))
+        step["option"] = option
         step["active"] = option == active_menu
         steps.append(step)
 
@@ -135,16 +159,21 @@ require_login()
 menu_options = []
 if is_admin_user(current_user()):
     menu_options.append("1. Funcionários")
+    menu_options.append("2. Usuários")
 menu_options.extend([
-    "2. Avaliação Semanal",
-    "3. Monitoria Mensal",
-    "4. Relatório Mensal",
+    "3. Avaliação Semanal",
+    "4. Monitoria Mensal",
+    "5. Relatório Mensal",
 ])
 
-current_menu = st.session_state.get("main_menu", menu_options[0])
+query_menu = st.query_params.get(NAV_QUERY_KEY, "")
+if isinstance(query_menu, list):
+    query_menu = query_menu[0] if query_menu else ""
+
+current_menu = query_menu if query_menu in menu_options else st.session_state.get("main_menu", menu_options[0])
 if current_menu not in menu_options:
     current_menu = menu_options[0]
-    st.session_state["main_menu"] = current_menu
+st.session_state["main_menu"] = current_menu
 
 operation_status = st.session_state.get("kaisan_operation_status") or {}
 sidebar_marker = str(operation_status.get("time", ""))
@@ -153,24 +182,27 @@ sidebar_steps, sidebar_stats, sidebar_month = _sidebar_snapshot(
     tuple(menu_options),
     sidebar_marker,
 )
-render_sidebar_process(sidebar_month, sidebar_steps, sidebar_stats)
+render_sidebar_navigation(sidebar_month, sidebar_steps, sidebar_stats, query_key=NAV_QUERY_KEY)
 render_user_sidebar()
 
-menu = st.sidebar.radio("Navegação", menu_options, key="main_menu")
+menu = current_menu
 
 st.sidebar.markdown("---")
 st.sidebar.caption(
-    "Use a ordem do processo: base de pessoas, avaliação semanal, monitoria e fechamento."
+    "Use a ordem do processo: base de pessoas, usuários, avaliação semanal, monitoria e fechamento."
 )
 
 if menu == "1. Funcionários":
     page_employees()
 
-elif menu == "2. Avaliação Semanal":
+elif menu == "2. Usuários":
+    page_users()
+
+elif menu == "3. Avaliação Semanal":
     page_weekly()
 
-elif menu == "3. Monitoria Mensal":
+elif menu == "4. Monitoria Mensal":
     render_monitor_page()
 
-elif menu == "4. Relatório Mensal":
+elif menu == "5. Relatório Mensal":
     render_report_page()

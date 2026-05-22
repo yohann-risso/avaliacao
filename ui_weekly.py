@@ -54,6 +54,7 @@ from db import (
     list_last_weekly,
 )
 from rules import suggest_taxa_erros_pct
+from ui_auth import current_evaluator_name, evaluator_options_for_current_user
 
 
 # -----------------------------
@@ -1091,7 +1092,8 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
     with top3:
         only_monitors = st.toggle("Só monitores", value=False, key="mass_only_monitors")
         if st.session_state.get("mass_evaluator") not in evaluator_options:
-            st.session_state["mass_evaluator"] = evaluator_options[0]
+            linked_evaluator = current_evaluator_name()
+            st.session_state["mass_evaluator"] = linked_evaluator if linked_evaluator in evaluator_options else evaluator_options[0]
         evaluator_mass = st.selectbox(
             "Avaliador padrão",
             evaluator_options,
@@ -1504,13 +1506,15 @@ def page_weekly():
         title="Avaliação Semanal",
         subtitle="Escolha o modo de trabalho, registre exceções e salve a avaliação com prévia financeira.",
         icon="🗓️",
-        kicker="Etapa 2",
+        kicker="Etapa 3",
     )
     render_operation_status()
 
     with st.spinner("Carregando funcionários ativos do banco..."):
         all_active_emp = list_active_employees()
-        evaluator_options = evaluator_options_from_df(list_active_leadership_evaluators())
+        evaluator_options = evaluator_options_for_current_user(
+            evaluator_options_from_df(list_active_leadership_evaluators())
+        )
     emp = all_active_emp.copy()
     if "is_leadership" in emp.columns:
         emp = emp[emp["is_leadership"].fillna(0).astype(int) == 0].copy()
@@ -1573,7 +1577,7 @@ def page_weekly():
     }
     items_default = payload["items_count"]
     notes_default = payload["notes"]
-    evaluator_default = payload["evaluator"]
+    evaluator_default = current_evaluator_name() or payload["evaluator"]
     just_defaults = payload["justs"]
     
     current_eval_key = f"{employee_id}|{ws_iso}"

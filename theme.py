@@ -3,6 +3,7 @@ from datetime import datetime
 from functools import lru_cache
 from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 import streamlit as st
 
@@ -224,40 +225,14 @@ def render_progress_panel(
     )
 
 
-def render_sidebar_process(
+def _sidebar_intro_html(
     month_label: str,
-    steps: list[dict],
-    stats: list[dict] | None = None,
     subtitle: str = "Operação estoque e expedição",
-):
+) -> str:
     logo_uri = _logo_data_uri()
     logo_html = f'<img src="{logo_uri}" alt="Kaisan" />' if logo_uri else '<span>K</span>'
 
-    step_items = []
-    for index, step in enumerate(steps, start=1):
-        tone = str(step.get("tone", "neutral") or "neutral").lower()
-        if tone not in {"info", "success", "warning", "danger", "neutral"}:
-            tone = "neutral"
-        active = " is-active" if step.get("active") else ""
-        title = escape(str(step.get("title", "")))
-        detail = escape(str(step.get("detail", "")))
-        step_items.append(
-            f'<div class="kaisan-process-step{active}">'
-            f'<span class="kaisan-step-number">{index}</span>'
-            f'<span class="kaisan-step-copy"><strong>{title}</strong><small>{detail}</small></span>'
-            f'<span class="kaisan-step-dot kaisan-dot-{tone}"></span>'
-            f'</div>'
-        )
-
-    stat_items = []
-    for stat in stats or []:
-        label = escape(str(stat.get("label", "")))
-        value = escape(str(stat.get("value", "")))
-        if label or value:
-            stat_items.append(f"<div><span>{label}</span><strong>{value}</strong></div>")
-
-    stats_html = f'<div class="kaisan-sidebar-stats">{"".join(stat_items)}</div>' if stat_items else ""
-    html = (
+    return (
         '<div class="kaisan-sidebar-brand">'
         f'<div class="kaisan-sidebar-logo">{logo_html}</div>'
         '<div>'
@@ -269,9 +244,73 @@ def render_sidebar_process(
         '<small>Competência ativa</small>'
         f'<strong>{escape(str(month_label))}</strong>'
         '</div>'
-        f'<div class="kaisan-process-list">{"".join(step_items)}</div>'
-        f'{stats_html}'
     )
+
+
+def _sidebar_stats_html(stats: list[dict] | None = None) -> str:
+    stat_items = []
+    for stat in stats or []:
+        label = escape(str(stat.get("label", "")))
+        value = escape(str(stat.get("value", "")))
+        if label or value:
+            stat_items.append(f"<div><span>{label}</span><strong>{value}</strong></div>")
+
+    return f'<div class="kaisan-sidebar-stats">{"".join(stat_items)}</div>' if stat_items else ""
+
+
+def _sidebar_step_html(
+    steps: list[dict],
+    query_key: str = "tela",
+    clickable: bool = False,
+) -> str:
+    step_items = []
+    for index, step in enumerate(steps, start=1):
+        tone = str(step.get("tone", "neutral") or "neutral").lower()
+        if tone not in {"info", "success", "warning", "danger", "neutral"}:
+            tone = "neutral"
+        active = " is-active" if step.get("active") else ""
+        title = escape(str(step.get("title", "")))
+        detail = escape(str(step.get("detail", "")))
+        content = (
+            f'<span class="kaisan-step-number">{index}</span>'
+            f'<span class="kaisan-step-copy"><strong>{title}</strong><small>{detail}</small></span>'
+            f'<span class="kaisan-step-dot kaisan-dot-{tone}"></span>'
+        )
+        if clickable:
+            option = str(step.get("option", step.get("title", "")))
+            aria_current = ' aria-current="page"' if step.get("active") else ""
+            step_items.append(
+                f'<a class="kaisan-process-step kaisan-nav-step{active}" href="?{escape(query_key)}={quote(option)}"'
+                f' target="_self"{aria_current}>{content}</a>'
+            )
+        else:
+            step_items.append(f'<div class="kaisan-process-step{active}">{content}</div>')
+
+    return f'<nav class="kaisan-process-list" aria-label="Navegação do processo">{"".join(step_items)}</nav>'
+
+
+def render_sidebar_process(
+    month_label: str,
+    steps: list[dict],
+    stats: list[dict] | None = None,
+    subtitle: str = "Operação estoque e expedição",
+):
+    html = _sidebar_intro_html(month_label, subtitle)
+    html += _sidebar_step_html(steps, clickable=False)
+    html += _sidebar_stats_html(stats)
+    st.sidebar.markdown(html, unsafe_allow_html=True)
+
+
+def render_sidebar_navigation(
+    month_label: str,
+    steps: list[dict],
+    stats: list[dict] | None = None,
+    subtitle: str = "Operação estoque e expedição",
+    query_key: str = "tela",
+):
+    html = _sidebar_intro_html(month_label, subtitle)
+    html += _sidebar_step_html(steps, query_key=query_key, clickable=True)
+    html += _sidebar_stats_html(stats)
     st.sidebar.markdown(html, unsafe_allow_html=True)
 
 
@@ -897,8 +936,32 @@ def apply_kaisan_admin_theme():
           gap: 0.6rem;
           align-items: center;
           padding: 0.62rem;
+          border: 1px solid transparent;
           border-radius: var(--kaisan-radius);
           background: rgba(255, 255, 255, 0.05);
+          text-decoration: none !important;
+        }
+
+        .kaisan-nav-step {
+          cursor: pointer;
+          transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+        }
+
+        .kaisan-nav-step:hover {
+          border-color: rgba(255, 255, 255, 0.14);
+          background: rgba(255, 255, 255, 0.1);
+        }
+
+        .kaisan-nav-step:focus-visible {
+          outline: 2px solid rgba(255, 255, 255, 0.72);
+          outline-offset: 2px;
+        }
+
+        .kaisan-nav-step:visited,
+        .kaisan-nav-step:hover,
+        .kaisan-nav-step:focus {
+          color: rgba(244, 251, 255, 0.92) !important;
+          text-decoration: none !important;
         }
 
         .kaisan-process-step.is-active {

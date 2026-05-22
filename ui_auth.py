@@ -8,10 +8,13 @@ AUTH_STATE_KEY = "auth_user"
 
 
 def _set_auth_user(user: dict):
+    evaluator_employee_id = user.get("evaluator_employee_id")
     st.session_state[AUTH_STATE_KEY] = {
         "id": int(user["id"]),
         "username": str(user["username"]),
         "role": str(user.get("role", "admin")),
+        "evaluator_employee_id": int(evaluator_employee_id) if evaluator_employee_id else None,
+        "evaluator_name": str(user.get("evaluator_name", "")),
     }
 
 
@@ -99,6 +102,20 @@ def is_admin_user(user: dict | None = None) -> bool:
     return str((user or {}).get("role", "")).strip().lower() == "admin"
 
 
+def current_evaluator_name(user: dict | None = None) -> str:
+    user = user if user is not None else current_user()
+    return str((user or {}).get("evaluator_name", "")).strip()
+
+
+def evaluator_options_for_current_user(options: list[str]) -> list[str]:
+    cleaned_options = [str(option).strip() for option in options if str(option).strip()]
+    user = current_user()
+    evaluator_name = current_evaluator_name(user)
+    if evaluator_name in cleaned_options and not is_admin_user(user):
+        return [evaluator_name]
+    return cleaned_options
+
+
 def require_admin():
     if is_admin_user():
         return
@@ -123,6 +140,9 @@ def render_user_sidebar():
         role = str(user.get("role", "")).strip()
         suffix = f" ({role})" if role else ""
         st.sidebar.caption(f"Logado como {username}{suffix}")
+        evaluator_name = current_evaluator_name(user)
+        if evaluator_name:
+            st.sidebar.caption(f"Avaliador: {evaluator_name}")
 
     if st.sidebar.button("Sair", type="secondary"):
         for key in list(st.session_state.keys()):

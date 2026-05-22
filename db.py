@@ -302,6 +302,7 @@ def init_postgres_db():
             username TEXT NOT NULL,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'admin',
+            evaluator_employee_id INTEGER,
             active INTEGER NOT NULL DEFAULT 1,
             last_login_at TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
@@ -333,6 +334,8 @@ def init_postgres_db():
             updated_at TEXT NOT NULL DEFAULT ''
         );
         """)
+        con.execute("ALTER TABLE login_users ADD COLUMN IF NOT EXISTS evaluator_employee_id INTEGER;")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_login_users_evaluator_employee ON login_users(evaluator_employee_id);")
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS hire_date TEXT NOT NULL DEFAULT '';")
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS monitor_start_date TEXT NOT NULL DEFAULT '';")
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS leadership_start_date TEXT NOT NULL DEFAULT '';")
@@ -471,13 +474,16 @@ def init_db():
             username TEXT NOT NULL UNIQUE COLLATE NOCASE,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL DEFAULT 'admin',
+            evaluator_employee_id INTEGER,
             active INTEGER NOT NULL DEFAULT 1,
             last_login_at TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL DEFAULT ''
         );
         """)
+        ensure_column(con, "login_users", "evaluator_employee_id", "evaluator_employee_id INTEGER")
         con.execute("CREATE INDEX IF NOT EXISTS idx_login_users_active ON login_users(active, username);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_login_users_evaluator_employee ON login_users(evaluator_employee_id);")
 
         con.execute("""
         CREATE TABLE IF NOT EXISTS employees (
@@ -658,7 +664,60 @@ def login_user_count() -> int:
     return int(row[0] or 0)
 
 
-def create_login_user(username: str, password: str, role: str = "admin", active: bool = True) -> int:
+def _normalize_evaluator_employee_id(con, evaluator_employee_id) -> int | None:
+    if evaluator_employee_id in (None, "", 0, "0"):
+        return None
+
+    try:
+        employee_id = int(evaluator_employee_id)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("Selecione um avaliador válido.") from exc
+
+    row = con.execute(
+        """
+        SELECT id
+        FROM employees
+        WHERE id = ?
+          AND active = 1
+          AND COALESCE(is_leadership, 0) = 1
+        LIMIT 1
+        """,
+        (employee_id,),
+    ).fetchone()
+    if not row:
+        raise ValueError("Selecione um funcionário ativo de coordenação/supervisão como avaliador.")
+
+    return int(row[0])
+
+
+def list_login_users() -> pd.DataFrame:
+    return fetch_df("""
+        SELECT
+            u.id,
+            u.username,
+            u.role,
+            u.active,
+            u.evaluator_employee_id,
+            COALESCE(e.name, '') AS evaluator_name,
+            COALESCE(e.sector, '') AS evaluator_sector,
+            COALESCE(e.role, '') AS evaluator_role,
+            COALESCE(e.active, 0) AS evaluator_active,
+            u.last_login_at,
+            u.created_at,
+            u.updated_at
+        FROM login_users u
+        LEFT JOIN employees e ON e.id = u.evaluator_employee_id
+        ORDER BY u.active DESC, LOWER(u.username)
+    """)
+
+
+def create_login_user(
+    username: str,
+    password: str,
+    role: str = "admin",
+    active: bool = True,
+    evaluator_employee_id: int | None = None,
+) -> int:
     username = normalize_username(username)
     password_hash = hash_password(password)
     role = str(role or "admin").strip().lower() or "admin"
@@ -666,14 +725,15 @@ def create_login_user(username: str, password: str, role: str = "admin", active:
 
     try:
         with db() as con:
-            params = (username, password_hash, role, 1 if active else 0, now, now)
+            evaluator_employee_id = _normalize_evaluator_employee_id(con, evaluator_employee_id)
+            params = (username, password_hash, role, evaluator_employee_id, 1 if active else 0, now, now)
             if is_postgres_backend():
                 cur = con.execute(
                     """
                     INSERT INTO login_users (
-                        username, password_hash, role, active, created_at, updated_at
+                        username, password_hash, role, evaluator_employee_id, active, created_at, updated_at
                     )
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     RETURNING id
                     """,
                     params,
@@ -683,13 +743,78 @@ def create_login_user(username: str, password: str, role: str = "admin", active:
             cur = con.execute(
                 """
                 INSERT INTO login_users (
-                    username, password_hash, role, active, created_at, updated_at
+                    username, password_hash, role, evaluator_employee_id, active, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 params,
             )
             return int(cur.lastrowid)
+    except Exception as exc:
+        if isinstance(exc, sqlite3.IntegrityError) or getattr(exc, "sqlstate", "") == "23505":
+            raise ValueError("Usuário de login já cadastrado.") from exc
+        raise
+
+
+def update_login_user(
+    user_id: int,
+    username: str,
+    role: str,
+    active: bool,
+    evaluator_employee_id: int | None = None,
+    password: str = "",
+) -> None:
+    username = normalize_username(username)
+    role = str(role or "admin").strip().lower() or "admin"
+    now = datetime.now().isoformat(timespec="seconds")
+
+    try:
+        with db() as con:
+            evaluator_employee_id = _normalize_evaluator_employee_id(con, evaluator_employee_id)
+            password = str(password or "")
+            if password:
+                con.execute(
+                    """
+                    UPDATE login_users
+                    SET username = ?,
+                        password_hash = ?,
+                        role = ?,
+                        evaluator_employee_id = ?,
+                        active = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        username,
+                        hash_password(password),
+                        role,
+                        evaluator_employee_id,
+                        1 if active else 0,
+                        now,
+                        int(user_id),
+                    ),
+                )
+                return
+
+            con.execute(
+                """
+                UPDATE login_users
+                SET username = ?,
+                    role = ?,
+                    evaluator_employee_id = ?,
+                    active = ?,
+                    updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    username,
+                    role,
+                    evaluator_employee_id,
+                    1 if active else 0,
+                    now,
+                    int(user_id),
+                ),
+            )
     except Exception as exc:
         if isinstance(exc, sqlite3.IntegrityError) or getattr(exc, "sqlstate", "") == "23505":
             raise ValueError("Usuário de login já cadastrado.") from exc
@@ -701,9 +826,17 @@ def authenticate_login(username: str, password: str) -> dict | None:
     with db() as con:
         row = con.execute(
             """
-            SELECT id, username, password_hash, role, active
-            FROM login_users
-            WHERE username = ?
+            SELECT
+                u.id,
+                u.username,
+                u.password_hash,
+                u.role,
+                u.active,
+                u.evaluator_employee_id,
+                COALESCE(e.name, '') AS evaluator_name
+            FROM login_users u
+            LEFT JOIN employees e ON e.id = u.evaluator_employee_id
+            WHERE u.username = ?
             LIMIT 1
             """,
             (username,),
@@ -712,7 +845,7 @@ def authenticate_login(username: str, password: str) -> dict | None:
         if not row:
             return None
 
-        user_id, stored_username, stored_hash, role, active = row
+        user_id, stored_username, stored_hash, role, active, evaluator_employee_id, evaluator_name = row
         if int(active or 0) != 1 or not verify_password(password, stored_hash):
             return None
 
@@ -725,6 +858,8 @@ def authenticate_login(username: str, password: str) -> dict | None:
         "id": int(user_id),
         "username": str(stored_username),
         "role": str(role or "admin"),
+        "evaluator_employee_id": int(evaluator_employee_id) if evaluator_employee_id else None,
+        "evaluator_name": str(evaluator_name or ""),
     }
 
 

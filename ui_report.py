@@ -2451,7 +2451,7 @@ def render_report_page():
         title="Relatório Mensal",
         subtitle="Fechamento com checklist, resumo executivo, acompanhamento do setor, PDF para assinatura, anexo RH e detalhamento por funcionário.",
         icon="📊",
-        kicker="Etapa 4",
+        kicker="Etapa 5",
         meta=["Resumo executivo", "Setor", "Detalhado"],
     )
     render_operation_status()

@@ -37,6 +37,7 @@ from utils import (
     strip_embedded_justification_block,
     weeks_for_competencia,
 )
+from ui_auth import current_evaluator_name, evaluator_options_for_current_user
 
 
 def band_multiplier(pct: float) -> float:
@@ -58,6 +59,11 @@ def evaluator_options_from_df(df: pd.DataFrame) -> list[str]:
             if str(name).strip()
         }
     )
+
+
+def selected_evaluator_index(options: list[str], default: str = "") -> int:
+    cleaned = str(default or "").strip()
+    return options.index(cleaned) if cleaned in options else 0
 
 
 MONITOR_JUSTIFICATION_MODELS = {
@@ -152,11 +158,13 @@ def render_monitor_page():
         title="Monitoria Mensal",
         subtitle="Avaliação exclusiva para monitores, com critérios mensais, faixas e justificativas obrigatórias.",
         icon="🧭",
-        kicker="Etapa 3",
+        kicker="Etapa 4",
     )
     render_operation_status()
 
-    evaluator_options = evaluator_options_from_df(list_active_leadership_evaluators())
+    evaluator_options = evaluator_options_for_current_user(
+        evaluator_options_from_df(list_active_leadership_evaluators())
+    )
     if not evaluator_options:
         st.error("Cadastre ou ative pelo menos um funcionário como coordenação/supervisão para selecionar o avaliador.")
         return
@@ -213,7 +221,11 @@ def render_monitor_page():
     top1, top2 = st.columns([2, 1], gap="large")
     with top1:
         selected = st.selectbox("Monitor", list(label_map.keys()))
-        evaluator = st.selectbox("Avaliador", evaluator_options)
+        evaluator = st.selectbox(
+            "Avaliador",
+            evaluator_options,
+            index=selected_evaluator_index(evaluator_options, current_evaluator_name()),
+        )
     with top2:
         st.caption("Competência")
         st.write(month_br)

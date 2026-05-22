@@ -27,6 +27,8 @@ Um modelo de secrets esta em `.streamlit/secrets.toml.example`.
 
 O app cria automaticamente a tabela `login_users` no banco configurado. No primeiro acesso, quando ainda não houver usuários cadastrados, a tela inicial permite criar o primeiro administrador. Depois disso, o menu do sistema só aparece após login.
 
+Administradores podem usar **Usuários** para cadastrar novos acessos, definir perfil e vincular cada login a um avaliador ativo de coordenação/supervisão.
+
 A senha é gravada com hash PBKDF2, não em texto puro.
 
 ## Banco Supabase/PostgreSQL
