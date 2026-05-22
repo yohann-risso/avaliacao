@@ -1,6 +1,8 @@
 import argparse
 import getpass
 import os
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -17,6 +19,36 @@ def get_existing_database_url() -> str:
         if value:
             return str(value).strip()
     return ""
+
+
+def read_clipboard() -> str:
+    if os.name == "nt" and shutil.which("powershell"):
+        completed = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "Get-Clipboard"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    if shutil.which("pbpaste"):
+        completed = subprocess.run(["pbpaste"], check=True, capture_output=True, text=True)
+        return completed.stdout.strip()
+
+    if shutil.which("wl-paste"):
+        completed = subprocess.run(["wl-paste", "--no-newline"], check=True, capture_output=True, text=True)
+        return completed.stdout.strip()
+
+    if shutil.which("xclip"):
+        completed = subprocess.run(
+            ["xclip", "-selection", "clipboard", "-out"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        return completed.stdout.strip()
+
+    raise RuntimeError("Nao consegui ler a area de transferencia neste sistema.")
 
 
 def normalize_database_url(value: str) -> str:
@@ -88,6 +120,11 @@ def parse_args() -> argparse.Namespace:
         help="Connection string PostgreSQL/Supabase. O modo interativo e mais seguro para colar senhas.",
     )
     parser.add_argument(
+        "--from-clipboard",
+        action="store_true",
+        help="Le a connection string da area de transferencia.",
+    )
+    parser.add_argument(
         "--force",
         action="store_true",
         help="Sobrescreve .streamlit/secrets.toml se ele ja existir.",
@@ -102,7 +139,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    raw_url = args.database_url or get_existing_database_url()
+    raw_url = ""
+    if args.from_clipboard:
+        raw_url = read_clipboard()
+    raw_url = raw_url or args.database_url or get_existing_database_url()
     if not raw_url and sys.stdin.isatty():
         raw_url = getpass.getpass("Cole a connection string PostgreSQL/Supabase: ")
 
