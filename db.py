@@ -3,9 +3,11 @@
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime
+from pathlib import Path
 import pandas as pd
 
-DB_PATH = "avaliacoes.db"
+APP_DIR = Path(__file__).resolve().parent
+DB_PATH = str(APP_DIR / "avaliacoes.db")
 
 
 def normalize_week_start_iso(value) -> str:

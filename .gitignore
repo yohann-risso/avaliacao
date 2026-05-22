@@ -1,0 +1,15 @@
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+.streamlit/secrets.toml
+
+*.err.log
+*.out.log
+*.db-wal
+*.db-shm
+*.backup_*.db
+
+*_check.png
+streamlit_*.png
+style_runtime_check.png

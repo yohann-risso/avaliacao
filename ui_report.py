@@ -974,7 +974,7 @@ def build_month_df(month: str) -> tuple[pd.DataFrame, list[str]]:
         LEFT JOIN monitor_monthly_evaluations m
           ON m.employee_id = e.id
          AND TRIM(m.month) = ?
-        ORDER BY e.active DESC, e.sector, e.role, e.name
+        ORDER BY e.sector, e.role, e.name, e.id
         """,
         tuple(weeks_iso + weeks_iso + [month]),
     )

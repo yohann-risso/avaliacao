@@ -20,6 +20,20 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
+## Publicando no Streamlit Community Cloud
+
+O projeto já está organizado para deploy no Streamlit Cloud:
+
+- Repositório: `yohann-risso/avaliacao`
+- Branch: `main`
+- Arquivo principal: `app.py`
+- Dependências: `requirements.txt`
+- Tema: `.streamlit/config.toml`
+
+No painel do [Streamlit Community Cloud](https://share.streamlit.io/), clique em **Create app**, selecione o repositório acima e informe `app.py` como entrypoint. Em **Advanced settings**, escolha Python 3.13 para manter a mesma versão usada no desenvolvimento local.
+
+Observação importante: o app usa SQLite local (`avaliacoes.db`). No Streamlit Community Cloud, arquivos locais podem ser apagados em reinícios/redeploys da aplicação. Para uso real com vários usuários ou dados que não podem ser perdidos, migre o banco para PostgreSQL/Supabase antes de operar em produção.
+
 ## Direção de UI/UX
 
 O app deve parecer uma ferramenta operacional: claro, confiável, direto e fácil de revisar. A navegação segue o fluxo real do trabalho:
