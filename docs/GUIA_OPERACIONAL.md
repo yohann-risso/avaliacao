@@ -32,7 +32,7 @@ No Streamlit Community Cloud, cadastre a chave `APP_DATABASE_URL` em **App setti
 No primeiro acesso, depois que o banco estiver configurado, se ainda nao houver usuario em `login_users`, a app abre a tela **Configurar login**.
 
 1. Informe o usuario administrador.
-2. Informe e confirme uma senha com pelo menos 8 caracteres.
+2. Informe e confirme uma senha com pelo menos 8 caracteres, combinando letras e numeros.
 3. A app cria o primeiro administrador e libera o menu.
 
 Depois do primeiro usuario, todos os acessos passam pela tela **Acesso restrito**. A senha e salva com hash PBKDF2, nao em texto puro.

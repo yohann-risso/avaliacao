@@ -360,8 +360,14 @@ def apply_kaisan_admin_theme():
 
         [data-testid="block-container"] {
           max-width: 1240px;
-          padding-top: 1.65rem;
+          padding-top: 1.35rem;
           padding-bottom: 3rem;
+        }
+
+        [data-testid="stHeading"] a,
+        [data-testid="stHeading"] button,
+        [data-testid="stHeaderActionElements"] {
+          display: none !important;
         }
 
         h1, h2, h3,
@@ -376,14 +382,14 @@ def apply_kaisan_admin_theme():
           grid-template-columns: auto minmax(0, 1fr) auto;
           align-items: center;
           gap: 1rem;
-          margin: 0 0 1rem;
-          padding: 0.15rem 0 0.9rem;
+          margin: 0 0 0.85rem;
+          padding: 0.1rem 0 0.72rem;
           border-bottom: 1px solid var(--kaisan-line-strong);
         }
 
         .kaisan-logo-card {
-          width: 58px;
-          height: 58px;
+          width: 54px;
+          height: 54px;
           display: grid;
           place-items: center;
           overflow: hidden;
@@ -444,23 +450,31 @@ def apply_kaisan_admin_theme():
 
         .kaisan-page-meta {
           display: flex;
-          flex-direction: column;
+          flex-wrap: wrap;
+          justify-content: flex-end;
           align-items: flex-end;
-          gap: 0.45rem;
-          min-width: 12rem;
+          gap: 0.42rem;
+          min-width: 0;
+          max-width: 28rem;
         }
 
         .kaisan-page-meta span {
           display: inline-flex;
+          align-items: center;
           justify-content: center;
-          min-width: 9rem;
-          padding: 0.56rem 0.82rem;
-          border: 1px solid var(--kaisan-line);
-          border-radius: var(--kaisan-radius-sm);
-          background: var(--kaisan-surface);
-          color: var(--kaisan-navy);
+          max-width: 100%;
+          min-width: 0;
+          padding: 0.32rem 0.58rem;
+          border: 1px solid rgba(52, 125, 165, 0.18);
+          border-radius: 999px;
+          background: #eef6fb;
+          color: #1f5d80;
+          font-size: 0.76rem;
           font-weight: 800;
-          box-shadow: var(--kaisan-shadow-soft);
+          line-height: 1.12;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .kaisan-section-heading {
@@ -858,10 +872,22 @@ def apply_kaisan_admin_theme():
           background: linear-gradient(180deg, #173452 0%, #0b182a 100%);
           border-right: 1px solid rgba(255, 255, 255, 0.08);
           box-shadow: 10px 0 24px rgba(11, 24, 42, 0.16);
+          overflow-x: hidden;
+        }
+
+        [data-testid="stSidebar"],
+        [data-testid="stSidebar"] * {
+          box-sizing: border-box;
         }
 
         [data-testid="stSidebar"] * {
           color: rgba(244, 251, 255, 0.92) !important;
+        }
+
+        [data-testid="stSidebar"] > div,
+        [data-testid="stSidebar"] section {
+          max-width: 100%;
+          overflow-x: hidden;
         }
 
         [data-testid="stSidebar"] [data-testid="stCaptionContainer"],
@@ -878,6 +904,10 @@ def apply_kaisan_admin_theme():
           align-items: center;
           gap: 0.72rem;
           margin: 0.2rem 0 1.2rem;
+        }
+
+        .kaisan-sidebar-brand > div:last-child {
+          min-width: 0;
         }
 
         .kaisan-sidebar-brand strong {
@@ -1040,8 +1070,37 @@ def apply_kaisan_admin_theme():
         }
 
         .kaisan-sidebar-stats strong {
+          flex: 0 0 auto;
           color: #ffffff !important;
           font-size: 0.9rem;
+        }
+
+        .kaisan-sidebar-stats span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stElementContainer"]:has([data-testid="stButton"]),
+        [data-testid="stSidebar"] [data-testid="stButton"],
+        [data-testid="stSidebar"] .stButton,
+        [data-testid="stSidebar"] .stButton > button,
+        [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] {
+          width: 100% !important;
+        }
+
+        [data-testid="stSidebar"] .stButton > button,
+        [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] {
+          min-height: 2.35rem;
+          justify-content: center;
+          background: #ffffff !important;
+          color: var(--kaisan-navy) !important;
+        }
+
+        [data-testid="stSidebar"] [data-testid="stButton"] button *,
+        [data-testid="stSidebar"] [data-testid="stBaseButton-secondary"] * {
+          color: var(--kaisan-navy) !important;
         }
 
         [data-testid="stSidebar"] [role="radiogroup"] {
@@ -1128,16 +1187,23 @@ def apply_kaisan_admin_theme():
 
         .stTabs [data-baseweb="tab-list"] {
           gap: 0.25rem;
+          max-width: 100%;
+          overflow-x: auto;
+          overflow-y: hidden;
+          flex-wrap: nowrap;
           border-bottom: 1px solid var(--kaisan-line);
+          scrollbar-width: thin;
         }
 
         .stTabs [data-baseweb="tab"] {
+          flex: 0 0 auto;
           height: 2.65rem;
           padding: 0 0.95rem;
           border: 1px solid transparent;
           border-radius: 8px 8px 0 0;
           color: var(--kaisan-muted);
           font-weight: 700;
+          white-space: nowrap;
         }
 
         .stTabs [aria-selected="true"] {
@@ -1174,6 +1240,16 @@ def apply_kaisan_admin_theme():
           background-color: var(--kaisan-blue) !important;
           border-color: #ffffff !important;
           box-shadow: 0 5px 14px rgba(52, 125, 165, 0.24) !important;
+        }
+
+        div[data-testid="stSlider"] {
+          max-width: 100%;
+          overflow: hidden;
+        }
+
+        div[data-testid="stSlider"] [data-baseweb="slider"] {
+          max-width: 100%;
+          padding-inline: 0.12rem;
         }
 
         [data-baseweb="slider"] > div > div:first-child {
@@ -1261,7 +1337,8 @@ def apply_kaisan_admin_theme():
         }
 
         [data-testid="stDataFrame"] {
-          overflow: hidden;
+          max-width: 100%;
+          overflow: auto;
           border: 1px solid var(--kaisan-line);
           border-radius: var(--kaisan-radius);
           background: var(--kaisan-surface);
@@ -1269,6 +1346,8 @@ def apply_kaisan_admin_theme():
         }
 
         [data-testid="stDataEditor"] {
+          max-width: 100%;
+          overflow: auto;
           border: 1px solid var(--kaisan-line);
           border-radius: var(--kaisan-radius);
           background: var(--kaisan-surface);
@@ -1314,34 +1393,93 @@ def apply_kaisan_admin_theme():
 
         @media (max-width: 768px) {
           [data-testid="block-container"] {
-            padding-top: 1.25rem;
-            padding-left: 1rem;
-            padding-right: 1rem;
+            padding-top: 0.85rem;
+            padding-left: 0.82rem;
+            padding-right: 0.82rem;
           }
 
           .kaisan-page-hero {
-            grid-template-columns: 1fr;
-            align-items: start;
-            gap: 0.9rem;
+            grid-template-columns: auto minmax(0, 1fr);
+            align-items: center;
+            gap: 0.62rem;
             margin-top: 0;
+            margin-bottom: 0.7rem;
+            padding-bottom: 0.62rem;
           }
 
           .kaisan-logo-card {
-            width: 58px;
-            height: 58px;
+            width: 44px;
+            height: 44px;
           }
 
           .kaisan-page-copy h1 {
-            font-size: 1.8rem;
+            gap: 0.42rem;
+            margin-bottom: 0.18rem;
+            font-size: 1.42rem;
+            line-height: 1.12;
+          }
+
+          .kaisan-page-icon {
+            width: 1.62rem;
+            height: 1.62rem;
+            font-size: 0.96rem;
+          }
+
+          .kaisan-page-copy p,
+          .kaisan-section-heading p {
+            font-size: 0.88rem;
+            line-height: 1.32;
           }
 
           .kaisan-page-meta {
+            grid-column: 1 / -1;
+            justify-content: flex-start;
             align-items: stretch;
             min-width: 0;
           }
 
+          .kaisan-page-meta span {
+            padding: 0.26rem 0.5rem;
+            font-size: 0.72rem;
+          }
+
           h2 {
-            font-size: 1.85rem;
+            font-size: 1.45rem;
+          }
+
+          .kaisan-section-heading {
+            margin: 1rem 0 0.65rem;
+          }
+
+          .kaisan-section-heading h2 {
+            font-size: 1.32rem;
+          }
+
+          .kaisan-status-card {
+            min-height: auto;
+            padding: 0.78rem 0.85rem;
+          }
+
+          [data-testid="stForm"] {
+            padding: 0.85rem;
+          }
+
+          .stTabs [data-baseweb="tab"] {
+            height: 2.35rem;
+            padding: 0 0.65rem;
+            font-size: 0.86rem;
+          }
+
+          .stButton > button,
+          .stDownloadButton > button,
+          [data-testid="stBaseButton-secondary"],
+          [data-testid="stBaseButton-primary"] {
+            min-height: 2.28rem;
+          }
+
+          [data-testid="stSidebar"] {
+            max-width: 100vw;
+            overflow-x: hidden;
           }
 
           div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stMetric"]) {

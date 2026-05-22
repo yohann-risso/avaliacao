@@ -65,6 +65,16 @@ def test_create_login_user_rejects_duplicate_username(isolated_db):
         db.create_login_user("ADMIN", "outra-senha-123")
 
 
+def test_create_login_user_rejects_weak_password(isolated_db):
+    with pytest.raises(ValueError, match="letras e números"):
+        db.create_login_user("admin", "senhafraca")
+
+
+def test_create_login_user_rejects_invalid_role(isolated_db):
+    with pytest.raises(ValueError, match="Perfil"):
+        db.create_login_user("admin", "senha-forte-123", role="superadmin")
+
+
 def test_create_login_user_links_evaluator(isolated_db):
     evaluator_id = _create_evaluator()
 

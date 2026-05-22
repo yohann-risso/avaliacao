@@ -2452,7 +2452,6 @@ def render_report_page():
         subtitle="Fechamento com checklist, resumo executivo, acompanhamento do setor, PDF para assinatura, anexo RH e detalhamento por funcionário.",
         icon="📊",
         kicker="Etapa 5",
-        meta=["Resumo executivo", "Setor", "Detalhado"],
     )
     render_operation_status()
 
@@ -2468,7 +2467,7 @@ def render_report_page():
             return
         month_br = month_label_to_br(month)
 
-    tabs = st.tabs(["Resumo", "Setor unificado", "Detalhado por funcionário"])
+    tabs = st.tabs(["Resumo", "Setor", "Funcionário"])
 
     # =========================
     # TAB 1: Resumo

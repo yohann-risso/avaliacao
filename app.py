@@ -7,6 +7,7 @@ from db import (
     normalize_month_label,
     refresh_employee_active_statuses,
 )
+from security import log_sanitized_exception, redact_sensitive
 from theme import apply_kaisan_admin_theme, render_sidebar_navigation
 from ui_auth import current_user, is_admin_user, render_user_sidebar, require_login
 from ui_employees import page_employees
@@ -150,7 +151,14 @@ try:
     _ensure_database_initialized()
     _refresh_employee_active_statuses()
 except RuntimeError as exc:
-    st.error(str(exc) or DATABASE_CONFIG_ERROR)
+    st.error(redact_sensitive(str(exc) or DATABASE_CONFIG_ERROR))
+    st.stop()
+except Exception as exc:
+    log_sanitized_exception("Falha ao inicializar banco", exc)
+    st.error(
+        "Não foi possível inicializar o banco. Confira a configuração do "
+        "Supabase/PostgreSQL nos Secrets."
+    )
     st.stop()
 
 apply_kaisan_admin_theme()
@@ -189,7 +197,7 @@ menu = current_menu
 
 st.sidebar.markdown("---")
 st.sidebar.caption(
-    "Use a ordem do processo: base de pessoas, usuários, avaliação semanal, monitoria e fechamento."
+    "Fluxo: pessoas, usuários, semanal, monitoria e fechamento."
 )
 
 if menu == "1. Funcionários":

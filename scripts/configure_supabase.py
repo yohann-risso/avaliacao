@@ -9,6 +9,11 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from security import redact_sensitive
+
 SECRETS_PATH = ROOT_DIR / ".streamlit" / "secrets.toml"
 DATABASE_URL_ENV_KEYS = ("APP_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL")
 
@@ -101,7 +106,6 @@ def write_streamlit_secret(database_url: str, force: bool) -> None:
 
 def validate_database(database_url: str) -> None:
     os.environ["APP_DATABASE_URL"] = database_url
-    sys.path.insert(0, str(ROOT_DIR))
 
     import db
 
@@ -153,7 +157,7 @@ def main() -> int:
             print("Conexao validada e schema garantido no Supabase/PostgreSQL.")
         write_streamlit_secret(database_url, force=args.force)
     except Exception as exc:
-        print(f"Falha ao configurar Supabase: {exc}", file=sys.stderr)
+        print(f"Falha ao configurar Supabase: {redact_sensitive(exc)}", file=sys.stderr)
         return 1
 
     return 0

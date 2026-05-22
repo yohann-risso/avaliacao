@@ -1621,7 +1621,7 @@ def page_weekly():
             index=selected_evaluator_index(evaluator_options, evaluator_default),
         )
 
-    st.info("Use as abas para preencher; a prévia financeira fica sempre visível na lateral.")
+    st.caption("Preencha por abas; a prévia financeira fica na barra lateral.")
     if existing_is_empty and has_previous_basis:
         st.info("Comentários e justificativas foram carregados da última avaliação deste funcionário como base.")
 

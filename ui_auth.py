@@ -1,3 +1,5 @@
+import time
+
 import streamlit as st
 
 from db import authenticate_login, create_login_user, login_user_count
@@ -5,6 +7,30 @@ from theme import render_page_header, render_status_notice
 
 
 AUTH_STATE_KEY = "auth_user"
+LOGIN_FAILURES_KEY = "auth_login_failures"
+LOGIN_LOCK_UNTIL_KEY = "auth_login_lock_until"
+MAX_LOGIN_FAILURES = 5
+LOGIN_LOCK_SECONDS = 5 * 60
+
+
+def _login_lock_remaining() -> int:
+    try:
+        lock_until = float(st.session_state.get(LOGIN_LOCK_UNTIL_KEY, 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+    return max(0, int(lock_until - time.time()))
+
+
+def _register_failed_login() -> None:
+    failures = int(st.session_state.get(LOGIN_FAILURES_KEY, 0) or 0) + 1
+    st.session_state[LOGIN_FAILURES_KEY] = failures
+    if failures >= MAX_LOGIN_FAILURES:
+        st.session_state[LOGIN_LOCK_UNTIL_KEY] = time.time() + LOGIN_LOCK_SECONDS
+
+
+def _clear_failed_login() -> None:
+    st.session_state.pop(LOGIN_FAILURES_KEY, None)
+    st.session_state.pop(LOGIN_LOCK_UNTIL_KEY, None)
 
 
 def _set_auth_user(user: dict):
@@ -61,6 +87,15 @@ def _render_login_form():
         kicker="Login",
     )
 
+    lock_remaining = _login_lock_remaining()
+    if lock_remaining > 0:
+        render_status_notice(
+            "Muitas tentativas de login",
+            f"Aguarde {max(1, lock_remaining // 60)} minuto(s) antes de tentar novamente.",
+            "warning",
+        )
+        return
+
     with st.form("form_login"):
         username = st.text_input("Usuário")
         password = st.text_input("Senha", type="password")
@@ -75,9 +110,11 @@ def _render_login_form():
         user = None
 
     if not user:
+        _register_failed_login()
         st.error("Usuário ou senha inválidos.")
         return
 
+    _clear_failed_login()
     _set_auth_user(user)
     st.rerun()
 

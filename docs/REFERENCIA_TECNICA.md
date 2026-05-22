@@ -151,7 +151,7 @@ Campos principais:
 - `created_at`;
 - `updated_at`.
 
-No PostgreSQL, `username` e protegido por indice unico em `LOWER(username)`. No SQLite de testes, a coluna usa unicidade case-insensitive. Senhas usam PBKDF2 SHA-256 com salt e `390_000` iteracoes. `evaluator_employee_id` aponta para o funcionario ativo de coordenacao/supervisao usado como avaliador padrao do login.
+No PostgreSQL, `username` e protegido por indice unico em `LOWER(username)`. No SQLite de testes, a coluna usa unicidade case-insensitive. Senhas usam PBKDF2 SHA-256 com salt e `600_000` iteracoes; novas senhas precisam combinar letras e numeros. `evaluator_employee_id` aponta para o funcionario ativo de coordenacao/supervisao usado como avaliador padrao do login.
 
 #### `employees`
 

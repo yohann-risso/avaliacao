@@ -5,6 +5,13 @@ import sys
 from pathlib import Path
 
 
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from security import redact_sensitive
+
+
 TABLES = [
     "login_users",
     "employees",
@@ -91,41 +98,45 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    args = parse_args()
-    sqlite_path = Path(args.sqlite_path).resolve()
-    if not sqlite_path.exists():
-        print(f"SQLite de origem não encontrado: {sqlite_path}", file=sys.stderr)
+    try:
+        args = parse_args()
+        sqlite_path = Path(args.sqlite_path).resolve()
+        if not sqlite_path.exists():
+            print(f"SQLite de origem não encontrado: {sqlite_path}", file=sys.stderr)
+            return 1
+
+        if args.database_url:
+            os.environ["APP_DATABASE_URL"] = args.database_url
+
+        import db
+
+        if not db.is_postgres_backend():
+            print(
+                "Configure APP_DATABASE_URL, DATABASE_URL ou SUPABASE_DB_URL com uma connection string PostgreSQL.",
+                file=sys.stderr,
+            )
+            return 1
+
+        db.init_db()
+
+        copied: dict[str, int] = {}
+        with db.db() as dst_con:
+            if args.replace:
+                for table in DELETE_ORDER:
+                    dst_con.execute(f"DELETE FROM {quote_ident(table)}")
+
+            for table in TABLES:
+                rows = rows_from_sqlite(sqlite_path, table)
+                copied[table] = upsert_rows(dst_con, table, rows)
+                reset_identity(dst_con, table)
+
+        for table, count in copied.items():
+            print(f"{table}: {count} linha(s)")
+
+        return 0
+    except Exception as exc:
+        print(f"Falha ao migrar dados: {redact_sensitive(exc)}", file=sys.stderr)
         return 1
-
-    if args.database_url:
-        os.environ["APP_DATABASE_URL"] = args.database_url
-
-    import db
-
-    if not db.is_postgres_backend():
-        print(
-            "Configure APP_DATABASE_URL, DATABASE_URL ou SUPABASE_DB_URL com uma connection string PostgreSQL.",
-            file=sys.stderr,
-        )
-        return 1
-
-    db.init_db()
-
-    copied: dict[str, int] = {}
-    with db.db() as dst_con:
-        if args.replace:
-            for table in DELETE_ORDER:
-                dst_con.execute(f"DELETE FROM {quote_ident(table)}")
-
-        for table in TABLES:
-            rows = rows_from_sqlite(sqlite_path, table)
-            copied[table] = upsert_rows(dst_con, table, rows)
-            reset_identity(dst_con, table)
-
-    for table, count in copied.items():
-        print(f"{table}: {count} linha(s)")
-
-    return 0
 
 
 if __name__ == "__main__":

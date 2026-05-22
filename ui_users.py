@@ -120,9 +120,18 @@ def page_users():
             with col1:
                 username = st.text_input("Usuário*", placeholder="Ex.: joao.silva")
             with col2:
-                role_label = st.selectbox("Perfil*", list(ROLE_OPTIONS.keys()))
+                role_label = st.selectbox(
+                    "Perfil*",
+                    list(ROLE_OPTIONS.keys()),
+                    help="Usuários avaliadores precisam estar vinculados a uma coordenação/supervisão ativa.",
+                )
             with col3:
-                evaluator_label = st.selectbox("Avaliador vinculado*", evaluator_options)
+                evaluator_label = st.selectbox(
+                    "Avaliador vinculado*",
+                    evaluator_options,
+                    index=1 if len(evaluator_options) > 1 else 0,
+                    help="Obrigatório para o perfil Avaliador; opcional para Administrador.",
+                )
             with col4:
                 active = st.toggle("Ativo", value=True)
 
@@ -132,6 +141,7 @@ def page_users():
             with pass2:
                 password_confirm = st.text_input("Confirmar senha*", type="password")
 
+            st.caption("Para perfil Avaliador, vincule o login a um avaliador ativo antes de cadastrar.")
             submitted = st.form_submit_button("Cadastrar usuário", type="primary")
 
         if submitted:
@@ -224,12 +234,14 @@ def page_users():
                     "Perfil*",
                     list(ROLE_OPTIONS.keys()),
                     index=_option_index(list(ROLE_OPTIONS.keys()), current_role_label),
+                    help="Usuários avaliadores precisam estar vinculados a uma coordenação/supervisão ativa.",
                 )
             with col3:
                 edit_evaluator_label = st.selectbox(
                     "Avaliador vinculado*",
                     evaluator_options,
                     index=_option_index(evaluator_options, current_evaluator_label),
+                    help="Obrigatório para o perfil Avaliador; opcional para Administrador.",
                 )
             with col4:
                 edit_active = st.toggle("Ativo", value=_is_truthy(selected_row.get("active")))
@@ -240,6 +252,7 @@ def page_users():
             with pass2:
                 new_password_confirm = st.text_input("Confirmar nova senha", type="password")
 
+            st.caption("Para perfil Avaliador, mantenha um avaliador ativo vinculado ao login.")
             submitted_update = st.form_submit_button("Salvar usuário", type="primary")
 
         if submitted_update:

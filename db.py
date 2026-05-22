@@ -13,7 +13,16 @@ import pandas as pd
 
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = str(APP_DIR / "avaliacoes.db")
-PASSWORD_HASH_ITERATIONS = 390_000
+PASSWORD_HASH_ITERATIONS = 600_000
+VALID_LOGIN_ROLES = {"admin", "avaliador"}
+COMMON_PASSWORDS = {
+    "12345678",
+    "admin123",
+    "password",
+    "password123",
+    "senha123",
+    "senha1234",
+}
 DATABASE_URL_ENV_KEYS = ("APP_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL")
 DATABASE_CONFIG_ERROR = (
     "Banco Supabase/PostgreSQL não configurado. Defina APP_DATABASE_URL nos Secrets "
@@ -625,10 +634,26 @@ def normalize_username(username: str) -> str:
     return cleaned
 
 
-def hash_password(password: str) -> str:
+def normalize_login_role(role: str) -> str:
+    cleaned = str(role or "admin").strip().lower() or "admin"
+    if cleaned not in VALID_LOGIN_ROLES:
+        raise ValueError("Perfil de usuário inválido.")
+    return cleaned
+
+
+def validate_password_strength(password: str) -> str:
     password = str(password or "")
     if len(password) < 8:
         raise ValueError("A senha deve ter pelo menos 8 caracteres.")
+    if password.strip().lower() in COMMON_PASSWORDS:
+        raise ValueError("Use uma senha menos previsível.")
+    if not any(ch.isalpha() for ch in password) or not any(ch.isdigit() for ch in password):
+        raise ValueError("A senha deve combinar letras e números.")
+    return password
+
+
+def hash_password(password: str) -> str:
+    password = validate_password_strength(password)
 
     salt = secrets.token_bytes(16)
     digest = hashlib.pbkdf2_hmac(
@@ -720,7 +745,7 @@ def create_login_user(
 ) -> int:
     username = normalize_username(username)
     password_hash = hash_password(password)
-    role = str(role or "admin").strip().lower() or "admin"
+    role = normalize_login_role(role)
     now = datetime.now().isoformat(timespec="seconds")
 
     try:
@@ -765,7 +790,7 @@ def update_login_user(
     password: str = "",
 ) -> None:
     username = normalize_username(username)
-    role = str(role or "admin").strip().lower() or "admin"
+    role = normalize_login_role(role)
     now = datetime.now().isoformat(timespec="seconds")
 
     try:
