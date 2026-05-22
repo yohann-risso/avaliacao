@@ -16,7 +16,7 @@ A connection string pode vir do ambiente ou dos secrets do Streamlit. A ordem de
 Exemplo em `.streamlit/secrets.toml`:
 
 ```toml
-APP_DATABASE_URL = "postgresql://postgres.PROJECT:SENHA@HOST:5432/postgres?sslmode=require"
+APP_DATABASE_URL = "postgresql://postgres.PROJECT_REF:SENHA@POOLER_HOST:5432/postgres?sslmode=require"
 ```
 
 Use `.streamlit/secrets.toml.example` como modelo. Nao commite o arquivo real de secrets.
@@ -25,11 +25,11 @@ Use `.streamlit/secrets.toml.example` como modelo. Nao commite o arquivo real de
 
 ```powershell
 python -m pip install -r requirements.txt
-$env:APP_DATABASE_URL = "postgresql://..."
+python scripts/configure_supabase.py
 python -m streamlit run app.py
 ```
 
-Se `APP_DATABASE_URL` ou equivalente nao estiver configurado, a app para na inicializacao com uma mensagem de erro. Isso evita gravar acidentalmente em um banco local efemero.
+O script pede a connection string de forma interativa, valida a conexao, garante o schema remoto e grava `.streamlit/secrets.toml`. Se `APP_DATABASE_URL` ou equivalente nao estiver configurado, a app para na inicializacao com uma mensagem de erro. Isso evita gravar acidentalmente em um banco local efemero.
 
 ## Streamlit Community Cloud
 

@@ -17,7 +17,7 @@ Essa stack prioriza velocidade de uso, baixa fricção de manutenção e operaç
 
 ```powershell
 python -m pip install -r requirements.txt
-# configure APP_DATABASE_URL antes de iniciar
+python scripts/configure_supabase.py
 python -m streamlit run app.py
 ```
 
@@ -34,10 +34,12 @@ A senha é gravada com hash PBKDF2, não em texto puro.
 O app exige uma connection string PostgreSQL/Supabase em uma destas chaves:
 
 ```toml
-APP_DATABASE_URL = "postgresql://postgres.pqpvuivefzlkgszwzyzs:SUA_SENHA@aws-1-us-east-2.pooler.supabase.com:5432/postgres?sslmode=require"
+APP_DATABASE_URL = "postgresql://postgres.PROJECT_REF:SUA_SENHA@POOLER_HOST:5432/postgres?sslmode=require"
 ```
 
 Também são aceitas `DATABASE_URL`, `SUPABASE_DB_URL`, `[database].url`, `[connections.supabase].url` e `[connections.postgres].url`.
+
+Para configurar localmente sem expor a senha no historico do terminal, rode `python scripts/configure_supabase.py` e cole a connection string quando solicitado. O script valida a conexao, garante o schema remoto e grava `.streamlit/secrets.toml`, que ja e ignorado pelo Git.
 
 No Streamlit Community Cloud, coloque essa chave em **App settings > Secrets**. Se for necessário repetir a migração de um SQLite local para o Supabase:
 

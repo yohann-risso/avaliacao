@@ -21,11 +21,11 @@ A app precisa de um banco PostgreSQL/Supabase configurado. Sem `APP_DATABASE_URL
 No ambiente local, configure a connection string antes de iniciar:
 
 ```powershell
-$env:APP_DATABASE_URL = "postgresql://..."
+python scripts/configure_supabase.py
 python -m streamlit run app.py
 ```
 
-No Streamlit Community Cloud, cadastre a mesma chave em **App settings > Secrets**. O arquivo `.streamlit/secrets.toml.example` serve como modelo.
+No Streamlit Community Cloud, cadastre a chave `APP_DATABASE_URL` em **App settings > Secrets**. O arquivo `.streamlit/secrets.toml.example` serve como modelo.
 
 ## Primeiro acesso e login
 

@@ -24,7 +24,7 @@ psycopg[binary]>=3.2.0
 
 ```powershell
 python -m pip install -r requirements.txt
-# configure APP_DATABASE_URL antes de iniciar
+python scripts/configure_supabase.py
 python -m streamlit run app.py
 ```
 
@@ -39,7 +39,7 @@ Chaves aceitas:
 - `st.secrets["connections"]["supabase"]["url"]`;
 - `st.secrets["connections"]["postgres"]["url"]`.
 
-Use `.streamlit/secrets.toml.example` como modelo para desenvolvimento local.
+Use `.streamlit/secrets.toml.example` como modelo para desenvolvimento local. Para configurar sem colocar a senha no historico do terminal, prefira `python scripts/configure_supabase.py`.
 
 ## Ponto de entrada
 
