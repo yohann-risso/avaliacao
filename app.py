@@ -2,6 +2,7 @@ import streamlit as st
 
 from db import init_db
 from theme import apply_kaisan_admin_theme
+from ui_auth import render_user_sidebar, require_login
 from ui_employees import page_employees
 from ui_weekly import page_weekly
 from ui_monitor import render_monitor_page
@@ -16,9 +17,11 @@ st.set_page_config(
 
 init_db()
 apply_kaisan_admin_theme()
+require_login()
 
 st.sidebar.title("Avaliação & Bonificação")
 st.sidebar.caption("Fluxo simples para avaliar, revisar e fechar o mês.")
+render_user_sidebar()
 
 menu = st.sidebar.radio(
     "Etapa",

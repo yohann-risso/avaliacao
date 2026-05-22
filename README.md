@@ -20,6 +20,12 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py
 ```
 
+## Login
+
+O app cria automaticamente a tabela `login_users` no SQLite. No primeiro acesso, quando ainda não houver usuários cadastrados, a tela inicial permite criar o primeiro administrador. Depois disso, o menu do sistema só aparece após login.
+
+A senha é gravada com hash PBKDF2, não em texto puro.
+
 ## Publicando no Streamlit Community Cloud
 
 O projeto já está organizado para deploy no Streamlit Cloud:

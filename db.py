@@ -1,5 +1,8 @@
 # db.py
 
+import hashlib
+import hmac
+import secrets
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime
@@ -8,6 +11,7 @@ import pandas as pd
 
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = str(APP_DIR / "avaliacoes.db")
+PASSWORD_HASH_ITERATIONS = 390_000
 
 
 def normalize_week_start_iso(value) -> str:
@@ -141,6 +145,20 @@ def init_db():
         con.execute("PRAGMA synchronous = NORMAL;")
 
         con.execute("""
+        CREATE TABLE IF NOT EXISTS login_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE COLLATE NOCASE,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'admin',
+            active INTEGER NOT NULL DEFAULT 1,
+            last_login_at TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT ''
+        );
+        """)
+        con.execute("CREATE INDEX IF NOT EXISTS idx_login_users_active ON login_users(active, username);")
+
+        con.execute("""
         CREATE TABLE IF NOT EXISTS employees (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -262,6 +280,111 @@ def init_db():
         con.execute("CREATE INDEX IF NOT EXISTS idx_weekly_eval_employee_week_desc ON weekly_evaluations(employee_id, week_start DESC);")
         con.execute("CREATE INDEX IF NOT EXISTS idx_weekly_errors_employee_week ON weekly_errors(employee_id, week_start);")
         con.execute("CREATE INDEX IF NOT EXISTS idx_monitor_eval_employee_month ON monitor_monthly_evaluations(employee_id, month);")
+
+# ----------------------
+# Login users
+# ----------------------
+def normalize_username(username: str) -> str:
+    cleaned = str(username or "").replace("\r", "").replace("\n", "").strip().lower()
+    if not cleaned:
+        raise ValueError("Informe o usuário.")
+    if len(cleaned) < 3:
+        raise ValueError("O usuário deve ter pelo menos 3 caracteres.")
+    return cleaned
+
+
+def hash_password(password: str) -> str:
+    password = str(password or "")
+    if len(password) < 8:
+        raise ValueError("A senha deve ter pelo menos 8 caracteres.")
+
+    salt = secrets.token_bytes(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt,
+        PASSWORD_HASH_ITERATIONS,
+    )
+    return f"pbkdf2_sha256${PASSWORD_HASH_ITERATIONS}${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored_hash: str) -> bool:
+    try:
+        algorithm, iterations, salt_hex, digest_hex = str(stored_hash or "").split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        salt = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(digest_hex)
+        candidate = hashlib.pbkdf2_hmac(
+            "sha256",
+            str(password or "").encode("utf-8"),
+            salt,
+            int(iterations),
+        )
+        return hmac.compare_digest(candidate, expected)
+    except Exception:
+        return False
+
+
+def login_user_count() -> int:
+    with db() as con:
+        row = con.execute("SELECT COUNT(*) FROM login_users").fetchone()
+    return int(row[0] or 0)
+
+
+def create_login_user(username: str, password: str, role: str = "admin", active: bool = True) -> int:
+    username = normalize_username(username)
+    password_hash = hash_password(password)
+    role = str(role or "admin").strip().lower() or "admin"
+    now = datetime.now().isoformat(timespec="seconds")
+
+    try:
+        with db() as con:
+            cur = con.execute(
+                """
+                INSERT INTO login_users (
+                    username, password_hash, role, active, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (username, password_hash, role, 1 if active else 0, now, now),
+            )
+            return int(cur.lastrowid)
+    except sqlite3.IntegrityError as exc:
+        raise ValueError("Usuário de login já cadastrado.") from exc
+
+
+def authenticate_login(username: str, password: str) -> dict | None:
+    username = normalize_username(username)
+    with db() as con:
+        row = con.execute(
+            """
+            SELECT id, username, password_hash, role, active
+            FROM login_users
+            WHERE username = ?
+            LIMIT 1
+            """,
+            (username,),
+        ).fetchone()
+
+        if not row:
+            return None
+
+        user_id, stored_username, stored_hash, role, active = row
+        if int(active or 0) != 1 or not verify_password(password, stored_hash):
+            return None
+
+        con.execute(
+            "UPDATE login_users SET last_login_at = ? WHERE id = ?",
+            (datetime.now().isoformat(timespec="seconds"), int(user_id)),
+        )
+
+    return {
+        "id": int(user_id),
+        "username": str(stored_username),
+        "role": str(role or "admin"),
+    }
+
 
 # ----------------------
 # Employees
