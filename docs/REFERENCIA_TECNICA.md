@@ -90,7 +90,7 @@ O banco oficial e o projeto Supabase configurado via:
 APP_DATABASE_URL
 ```
 
-`avaliacoes.db` permanece apenas como artefato local de migracao/testes. Em execucao normal, o app nao usa SQLite como fallback.
+Arquivos SQLite locais, como `avaliacoes.db`, sao ignorados pelo repositorio e servem apenas como artefatos temporarios de migracao/testes. Em execucao normal, o app nao usa SQLite como fallback.
 
 `db.get_database_url()` busca a connection string nas variaveis de ambiente e depois em `st.secrets`. `db.require_postgres_database_url()` bloqueia a inicializacao se a URL estiver ausente ou nao for PostgreSQL.
 
@@ -127,7 +127,7 @@ Tambem existe `supabase/config.toml` para uso com Supabase CLI local.
 Para migrar dados antigos do SQLite:
 
 ```powershell
-python scripts/migrate_sqlite_to_supabase.py --database-url "postgresql://..."
+python scripts/migrate_sqlite_to_supabase.py --sqlite-path ".\avaliacoes.db" --database-url "postgresql://..."
 ```
 
 Com `--replace`, o script apaga os dados das tabelas de destino antes de importar. Use somente com backup confirmado.
@@ -410,7 +410,7 @@ Uso atual dos componentes novos:
 - `ui_report.py`: progresso do fechamento, estagios de liberacao e foco operacional.
 - `ui_employees.py`: alerta visual para manutencao de cadastro/status.
 
-O guia visual completo esta em `STYLE_GUIDE.md`.
+O guia visual completo esta em `docs/STYLE_GUIDE.md`.
 
 ## Testes
 

@@ -11,5 +11,5 @@ Esta pasta concentra a documentacao da app **Avaliacao & Bonificacao**.
 ## Documentos relacionados
 
 - [README do projeto](../README.md): visao rapida, stack e como rodar localmente.
-- [Guia de estilo](../STYLE_GUIDE.md): direcao visual, paleta e principios de UX.
-- [Guia resumido para colaboradores](../guia_avaliacao_bonificacao_funcionarios.md): explicacao simples das regras de avaliacao e bonificacao.
+- [Guia de estilo](STYLE_GUIDE.md): direcao visual, paleta e principios de UX.
+- [Guia resumido para colaboradores](GUIA_COLABORADORES.md): explicacao simples das regras de avaliacao e bonificacao.

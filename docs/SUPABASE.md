@@ -1,6 +1,6 @@
 # Supabase e PostgreSQL
 
-Esta aplicacao usa PostgreSQL/Supabase como banco oficial. O arquivo `avaliacoes.db` nao e mais fallback de execucao normal; ele fica apenas como origem de migracao ou apoio em testes locais.
+Esta aplicacao usa PostgreSQL/Supabase como banco oficial. Arquivos SQLite locais, como `avaliacoes.db`, nao sao fallback de execucao normal e ficam ignorados pelo repositorio. Use-os apenas como origem temporaria de migracao ou apoio em testes locais.
 
 ## Variaveis aceitas
 
@@ -62,16 +62,16 @@ O schema habilita Row Level Security nas tabelas e revoga acesso direto de `anon
 
 ## Migracao do SQLite
 
-Para importar dados do `avaliacoes.db` para o Supabase:
+Para importar dados de um SQLite local para o Supabase:
 
 ```powershell
-python scripts/migrate_sqlite_to_supabase.py --database-url "postgresql://..."
+python scripts/migrate_sqlite_to_supabase.py --sqlite-path ".\avaliacoes.db" --database-url "postgresql://..."
 ```
 
 Para substituir dados existentes antes de importar:
 
 ```powershell
-python scripts/migrate_sqlite_to_supabase.py --database-url "postgresql://..." --replace
+python scripts/migrate_sqlite_to_supabase.py --sqlite-path ".\avaliacoes.db" --database-url "postgresql://..." --replace
 ```
 
 Use `--replace` somente com backup confirmado, porque ele limpa as tabelas de destino antes da importacao.
@@ -88,4 +88,3 @@ O script:
 Os testes usam SQLite somente quando `AVALIACAO_ALLOW_SQLITE=1`. O arquivo `tests/conftest.py` define essa variavel por padrao para a suite.
 
 Essa compatibilidade existe para testes rapidos de regra de negocio, sem exigir um Supabase real em cada execucao.
-

@@ -4,12 +4,19 @@ __pycache__/
 
 .streamlit/secrets.toml
 
+*.db
+*.sqlite
+*.sqlite3
+*.pdf
+*.docx
 *.err.log
 *.out.log
 *.db-wal
 *.db-shm
 *.backup_*.db
 
+bugcheck_*.png
+*_runtime_check*.png
 *_check.png
 streamlit_*.png
 style_runtime_check.png

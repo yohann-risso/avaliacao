@@ -11,7 +11,7 @@ App interno para cadastro de colaboradores, avaliação semanal, monitoria mensa
 - **ReportLab**: geração dos PDFs de fechamento, assinatura e anexos.
 - **CSS customizado em `theme.py`**: identidade visual própria sem adicionar complexidade de frontend.
 
-Essa stack prioriza velocidade de uso, baixa fricção de manutenção e operação multiusuário. O banco da aplicação é o Supabase; o antigo `avaliacoes.db` fica apenas como artefato de migração/testes locais.
+Essa stack prioriza velocidade de uso, baixa fricção de manutenção e operação multiusuário. O banco da aplicação é o Supabase; bancos SQLite locais são ignorados pelo repositório e só devem ser usados como origem temporária de migração ou apoio de testes.
 
 ## Rodando localmente
 
@@ -39,10 +39,10 @@ APP_DATABASE_URL = "postgresql://postgres.pqpvuivefzlkgszwzyzs:SUA_SENHA@aws-1-u
 
 Também são aceitas `DATABASE_URL`, `SUPABASE_DB_URL`, `[database].url`, `[connections.supabase].url` e `[connections.postgres].url`.
 
-No Streamlit Community Cloud, coloque essa chave em **App settings > Secrets**. Se for necessário repetir a migração do SQLite local para o Supabase:
+No Streamlit Community Cloud, coloque essa chave em **App settings > Secrets**. Se for necessário repetir a migração de um SQLite local para o Supabase:
 
 ```powershell
-python scripts/migrate_sqlite_to_supabase.py --database-url "postgresql://..." --replace
+python scripts/migrate_sqlite_to_supabase.py --sqlite-path ".\avaliacoes.db" --database-url "postgresql://..." --replace
 ```
 
 Use `--replace` apenas quando houver backup confirmado, porque ele limpa as tabelas antes da importação.
@@ -70,12 +70,13 @@ O app deve parecer uma ferramenta operacional: claro, confiável, direto e fáci
 3. Monitoria Mensal
 4. Relatório Mensal
 
-As decisões visuais e de interação estão documentadas em [STYLE_GUIDE.md](STYLE_GUIDE.md).
+As decisões visuais e de interação estão documentadas em [docs/STYLE_GUIDE.md](docs/STYLE_GUIDE.md).
 
 ## Documentação completa
 
 A documentação da aplicação está em [docs/](docs/):
 
 - [Guia operacional](docs/GUIA_OPERACIONAL.md): uso da app no ciclo mensal.
+- [Guia resumido para colaboradores](docs/GUIA_COLABORADORES.md): explicação simples das regras de avaliação e bonificação.
 - [Referência técnica](docs/REFERENCIA_TECNICA.md): arquitetura, banco, regras, testes e deploy.
 - [Supabase e PostgreSQL](docs/SUPABASE.md): configuração do banco remoto e migração do SQLite.
