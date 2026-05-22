@@ -44,6 +44,7 @@ except Exception:
     from utils import weeks_that_intersect_month as weeks_for_month
 
 from rules import calculate_weekly_payment
+from ui_auth import require_admin
 
 # PAY_BANDS fallback (caso não exista no constants.py)
 try:
@@ -2453,6 +2454,7 @@ def build_detailed_employee_pdf_bytes(
 # UI
 # -----------------------------
 def render_report_page():
+    require_admin()
     render_page_header(
         title="Relatório Mensal",
         subtitle="Fechamento com checklist, resumo executivo, acompanhamento do setor, PDF para assinatura, anexo RH e detalhamento por funcionário.",

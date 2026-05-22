@@ -8,8 +8,9 @@ from db import (
     refresh_employee_active_statuses,
 )
 from security import log_sanitized_exception, redact_sensitive
+from navigation import menu_options_for_user
 from theme import apply_kaisan_admin_theme, render_sidebar_navigation
-from ui_auth import current_user, is_admin_user, render_user_sidebar, require_login
+from ui_auth import current_user, render_user_sidebar, require_login
 from utils import current_month_br, month_label_to_br, weeks_for_competencia
 
 
@@ -196,15 +197,7 @@ except Exception as exc:
 apply_kaisan_admin_theme()
 require_login()
 
-menu_options = []
-if is_admin_user(current_user()):
-    menu_options.append("1. Funcionários")
-    menu_options.append("2. Usuários")
-menu_options.extend([
-    "3. Avaliação Semanal",
-    "4. Monitoria Mensal",
-    "5. Relatório Mensal",
-])
+menu_options = menu_options_for_user(current_user())
 
 query_menu = st.query_params.get(NAV_QUERY_KEY, "")
 if isinstance(query_menu, list):
