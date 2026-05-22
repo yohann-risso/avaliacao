@@ -90,11 +90,39 @@ def require_login():
     st.stop()
 
 
+def current_user() -> dict:
+    return st.session_state.get(AUTH_STATE_KEY) or {}
+
+
+def is_admin_user(user: dict | None = None) -> bool:
+    user = user if user is not None else current_user()
+    return str((user or {}).get("role", "")).strip().lower() == "admin"
+
+
+def require_admin():
+    if is_admin_user():
+        return
+
+    render_page_header(
+        "Acesso administrativo",
+        "Esta área é exclusiva para usuários administradores.",
+        kicker="Permissão",
+    )
+    render_status_notice(
+        "Usuário sem permissão",
+        "Entre com uma conta de administrador para cadastrar ou alterar funcionários.",
+        "warning",
+    )
+    st.stop()
+
+
 def render_user_sidebar():
     user = st.session_state.get(AUTH_STATE_KEY) or {}
     username = str(user.get("username", "")).strip()
     if username:
-        st.sidebar.caption(f"Logado como {username}")
+        role = str(user.get("role", "")).strip()
+        suffix = f" ({role})" if role else ""
+        st.sidebar.caption(f"Logado como {username}{suffix}")
 
     if st.sidebar.button("Sair", type="secondary"):
         for key in list(st.session_state.keys()):

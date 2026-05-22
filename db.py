@@ -182,6 +182,11 @@ def init_db():
         ensure_column(con, "employees", "termination_date", "termination_date TEXT NOT NULL DEFAULT ''")
         ensure_column(con, "employees", "is_leadership", "is_leadership INTEGER NOT NULL DEFAULT 0")
         ensure_column(con, "employees", "deactivated_at", "deactivated_at TEXT NOT NULL DEFAULT ''")
+        ensure_column(con, "employees", "created_by_user_id", "created_by_user_id INTEGER")
+        ensure_column(con, "employees", "created_by_username", "created_by_username TEXT NOT NULL DEFAULT ''")
+        ensure_column(con, "employees", "updated_by_user_id", "updated_by_user_id INTEGER")
+        ensure_column(con, "employees", "updated_by_username", "updated_by_username TEXT NOT NULL DEFAULT ''")
+        ensure_column(con, "employees", "updated_at", "updated_at TEXT NOT NULL DEFAULT ''")
         con.execute("""
             UPDATE employees
             SET termination_date = substr(deactivated_at, 1, 10)
@@ -427,6 +432,8 @@ def insert_employee(
     monitor_start_date: str = "",
     leadership_start_date: str = "",
     termination_date: str = "",
+    created_by_user_id: int | None = None,
+    created_by_username: str = "",
 ):
     hire_date = normalize_hire_date_iso(hire_date)
     if not hire_date:
@@ -444,9 +451,10 @@ def insert_employee(
         """
         INSERT INTO employees (
             name, sector, role, hire_date, monitor_start_date, leadership_start_date, termination_date,
-            is_monitor, is_leadership, active, deactivated_at, created_at
+            is_monitor, is_leadership, active, deactivated_at, created_at,
+            created_by_user_id, created_by_username, updated_by_user_id, updated_by_username, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             name.strip(),
@@ -461,19 +469,57 @@ def insert_employee(
             active_value,
             deactivated_at,
             datetime.now().isoformat(timespec="seconds"),
+            created_by_user_id,
+            str(created_by_username or "").strip(),
+            created_by_user_id,
+            str(created_by_username or "").strip(),
+            datetime.now().isoformat(timespec="seconds"),
         )
     )
 
-def deactivate_employee(employee_id: int):
+def deactivate_employee(employee_id: int, updated_by_user_id: int | None = None, updated_by_username: str = ""):
     today = date.today().isoformat()
     exec_sql(
-        "UPDATE employees SET active=0, termination_date=?, deactivated_at=? WHERE id=?",
-        (today, datetime.now().isoformat(timespec="seconds"), int(employee_id)),
+        """
+        UPDATE employees
+        SET active=0,
+            termination_date=?,
+            deactivated_at=?,
+            updated_by_user_id=?,
+            updated_by_username=?,
+            updated_at=?
+        WHERE id=?
+        """,
+        (
+            today,
+            datetime.now().isoformat(timespec="seconds"),
+            updated_by_user_id,
+            str(updated_by_username or "").strip(),
+            datetime.now().isoformat(timespec="seconds"),
+            int(employee_id),
+        ),
     )
 
 
-def reactivate_employee(employee_id: int):
-    exec_sql("UPDATE employees SET active=1, termination_date='', deactivated_at='' WHERE id=?", (int(employee_id),))
+def reactivate_employee(employee_id: int, updated_by_user_id: int | None = None, updated_by_username: str = ""):
+    exec_sql(
+        """
+        UPDATE employees
+        SET active=1,
+            termination_date='',
+            deactivated_at='',
+            updated_by_user_id=?,
+            updated_by_username=?,
+            updated_at=?
+        WHERE id=?
+        """,
+        (
+            updated_by_user_id,
+            str(updated_by_username or "").strip(),
+            datetime.now().isoformat(timespec="seconds"),
+            int(employee_id),
+        ),
+    )
 
 
 def list_employees(include_inactive: bool = True):
@@ -481,7 +527,8 @@ def list_employees(include_inactive: bool = True):
         return fetch_df("""
             SELECT
                 id, name, sector, role, hire_date, monitor_start_date, leadership_start_date, termination_date,
-                is_monitor, is_leadership, active, deactivated_at
+                is_monitor, is_leadership, active, deactivated_at,
+                created_by_user_id, created_by_username, updated_by_user_id, updated_by_username, updated_at
             FROM employees
             ORDER BY active DESC, sector, role, name
         """)
@@ -492,7 +539,8 @@ def list_active_employees():
     return fetch_df("""
         SELECT
             id, name, sector, role, hire_date, monitor_start_date, leadership_start_date, termination_date,
-            is_monitor, is_leadership, active, deactivated_at
+            is_monitor, is_leadership, active, deactivated_at,
+            created_by_user_id, created_by_username, updated_by_user_id, updated_by_username, updated_at
         FROM employees
         WHERE active=1
         ORDER BY sector, role, name
@@ -805,6 +853,8 @@ def update_employee(
     monitor_start_date: str = "",
     leadership_start_date: str = "",
     termination_date: str = "",
+    updated_by_user_id: int | None = None,
+    updated_by_username: str = "",
 ):
     hire_date = normalize_hire_date_iso(hire_date)
     if not hire_date:
@@ -832,7 +882,10 @@ def update_employee(
             is_monitor = ?,
             is_leadership = ?,
             active = ?,
-            deactivated_at = ?
+            deactivated_at = ?,
+            updated_by_user_id = ?,
+            updated_by_username = ?,
+            updated_at = ?
         WHERE id = ?
         """,
         (
@@ -847,6 +900,9 @@ def update_employee(
             is_leadership_value,
             active_value,
             deactivated_at,
+            updated_by_user_id,
+            str(updated_by_username or "").strip(),
+            datetime.now().isoformat(timespec="seconds"),
             int(employee_id),
         ),
     )

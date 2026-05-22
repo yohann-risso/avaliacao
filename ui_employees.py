@@ -18,6 +18,7 @@ from theme import (
     render_page_header,
     render_section_header,
 )
+from ui_auth import current_user, require_admin
 from utils import date_iso_to_br, datetime_iso_to_br, brl
 
 
@@ -39,11 +40,17 @@ def _years_in_company(hire_date_iso: str) -> int:
 
 
 def page_employees():
+    require_admin()
+    admin_user = current_user()
+    admin_id = int(admin_user.get("id")) if admin_user.get("id") is not None else None
+    admin_username = str(admin_user.get("username", "")).strip()
+
     render_page_header(
         title="Funcionários",
-        subtitle="Cadastro, filtros e status dos colaboradores em uma tela limpa para manutenção rápida.",
+        subtitle="Cadastro administrativo de colaboradores com trilha de auditoria do usuário logado.",
         icon="👤",
         kicker="Etapa 1",
+        meta=[f"Admin: {admin_username}"] if admin_username else None,
     )
     render_operation_status()
 
@@ -122,6 +129,8 @@ def page_employees():
                             monitor_start_date=monitor_start_date,
                             leadership_start_date=leadership_start_date,
                             termination_date=termination_date,
+                            created_by_user_id=admin_id,
+                            created_by_username=admin_username,
                         )
                 except ValueError as exc:
                     st.error(str(exc))
@@ -160,6 +169,9 @@ def page_employees():
         show["Coord./Supervisão desde"] = show["leadership_start_date"].apply(date_iso_to_br)
         show["Desligamento"] = show["termination_date"].apply(date_iso_to_br)
         show["Desativado em"] = show["deactivated_at"].apply(datetime_iso_to_br)
+        show["Criado por"] = show["created_by_username"].fillna("").astype(str).replace("", "-")
+        show["Atualizado por"] = show["updated_by_username"].fillna("").astype(str).replace("", "-")
+        show["Atualizado em"] = show["updated_at"].apply(datetime_iso_to_br)
         show["Anos empresa"] = show["hire_date"].apply(_years_in_company)
         show["Adicional tempo"] = show["Anos empresa"].apply(lambda years: brl(float(years * TENURE_BONUS_PER_YEAR)))
         show = show.rename(columns={"name": "Nome", "sector": "Setor", "role": "Função"})
@@ -218,7 +230,7 @@ def page_employees():
             filtered[[
                 "id", "Nome", "Setor", "Função", "Status", "Contratação", "Desativado em",
                 "Desligamento", "Anos empresa", "Adicional tempo", "Monitor", "Monitor desde",
-                "Coord./Supervisão", "Coord./Supervisão desde",
+                "Coord./Supervisão", "Coord./Supervisão desde", "Criado por", "Atualizado por", "Atualizado em",
             ]],
             width="stretch",
             hide_index=True
@@ -350,6 +362,8 @@ def page_employees():
                             monitor_start_date=edit_monitor_start_date,
                             leadership_start_date=edit_leadership_start_date,
                             termination_date=edit_termination_date,
+                            updated_by_user_id=admin_id,
+                            updated_by_username=admin_username,
                         )
                 except ValueError as exc:
                     st.error(str(exc))
@@ -390,7 +404,11 @@ def page_employees():
                 st.stop()
 
             with st.spinner("Atualizando status no banco..."):
-                deactivate_employee(active_map[selected_deactivate])
+                deactivate_employee(
+                    active_map[selected_deactivate],
+                    updated_by_user_id=admin_id,
+                    updated_by_username=admin_username,
+                )
             mark_operation_status(
                 "Funcionário desativado",
                 f"{selected_deactivate} permanece no histórico e sai dos fluxos ativos.",
@@ -418,7 +436,11 @@ def page_employees():
                 st.stop()
 
             with st.spinner("Atualizando status no banco..."):
-                reactivate_employee(inactive_map[selected_reactivate])
+                reactivate_employee(
+                    inactive_map[selected_reactivate],
+                    updated_by_user_id=admin_id,
+                    updated_by_username=admin_username,
+                )
             mark_operation_status(
                 "Funcionário reativado",
                 f"{selected_reactivate} voltou para os fluxos ativos.",

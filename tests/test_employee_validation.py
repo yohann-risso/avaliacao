@@ -70,3 +70,53 @@ def test_termination_date_deactivates_employee(isolated_db):
     assert int(row["active"]) == 0
     assert row["termination_date"] == "2026-05-02"
     assert str(row["deactivated_at"]).strip()
+
+
+def test_employee_creation_records_logged_admin(isolated_db):
+    db.insert_employee(
+        name="Pessoa Auditada",
+        sector="Expedição",
+        role="Separador",
+        is_monitor=False,
+        hire_date="01/05/2026",
+        created_by_user_id=7,
+        created_by_username="admin",
+    )
+
+    row = db.list_employees(include_inactive=True).iloc[0]
+
+    assert int(row["created_by_user_id"]) == 7
+    assert row["created_by_username"] == "admin"
+    assert int(row["updated_by_user_id"]) == 7
+    assert row["updated_by_username"] == "admin"
+    assert str(row["updated_at"]).strip()
+
+
+def test_employee_updates_record_logged_admin(isolated_db):
+    db.insert_employee(
+        name="Pessoa Editada",
+        sector="Expedição",
+        role="Separador",
+        is_monitor=False,
+        hire_date="01/05/2026",
+        created_by_user_id=7,
+        created_by_username="admin",
+    )
+    employee_id = int(db.list_employees(include_inactive=True).iloc[0]["id"])
+
+    db.update_employee(
+        employee_id=employee_id,
+        name="Pessoa Editada",
+        sector="Expedição",
+        role="Conferente",
+        is_monitor=False,
+        hire_date="01/05/2026",
+        updated_by_user_id=9,
+        updated_by_username="superadmin",
+    )
+
+    row = db.list_employees(include_inactive=True).iloc[0]
+
+    assert row["role"] == "Conferente"
+    assert int(row["updated_by_user_id"]) == 9
+    assert row["updated_by_username"] == "superadmin"
