@@ -307,11 +307,43 @@ def render_sidebar_navigation(
     stats: list[dict] | None = None,
     subtitle: str = "Operação estoque e expedição",
     query_key: str = "tela",
-):
+    key: str = "main_menu_nav",
+) -> str | None:
     html = _sidebar_intro_html(month_label, subtitle)
-    html += _sidebar_step_html(steps, query_key=query_key, clickable=True)
-    html += _sidebar_stats_html(stats)
     st.sidebar.markdown(html, unsafe_allow_html=True)
+
+    options = [str(step.get("option", step.get("title", ""))) for step in steps]
+    options = [option for option in options if option]
+    if not options:
+        st.sidebar.markdown(_sidebar_stats_html(stats), unsafe_allow_html=True)
+        return None
+
+    active_option = next(
+        (
+            str(step.get("option", step.get("title", "")))
+            for step in steps
+            if step.get("active")
+        ),
+        options[0],
+    )
+    active_index = options.index(active_option) if active_option in options else 0
+    labels = {}
+    for index, step in enumerate(steps, start=1):
+        option = str(step.get("option", step.get("title", "")))
+        title = str(step.get("title", option))
+        detail = str(step.get("detail", "") or "").strip()
+        labels[option] = f"{index}. {title}" + (f" · {detail}" if detail else "")
+
+    selected = st.sidebar.radio(
+        "Navegação",
+        options,
+        index=active_index,
+        format_func=lambda option: labels.get(option, str(option)),
+        key=key,
+        label_visibility="collapsed",
+    )
+    st.sidebar.markdown(_sidebar_stats_html(stats), unsafe_allow_html=True)
+    return selected
 
 
 def apply_kaisan_admin_theme():

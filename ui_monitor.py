@@ -40,6 +40,21 @@ from utils import (
 from ui_auth import current_evaluator_name, evaluator_options_for_current_user
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_monitor_evaluators(data_marker: str = "") -> pd.DataFrame:
+    return list_active_leadership_evaluators()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_active_monitors(data_marker: str = "") -> pd.DataFrame:
+    return fetch_df("""
+        SELECT id, name, sector, role, monitor_start_date
+        FROM employees
+        WHERE active = 1 AND is_monitor = 1 AND COALESCE(is_leadership, 0) = 0
+        ORDER BY sector, role, name
+    """)
+
+
 def band_multiplier(pct: float) -> float:
     return pay_band_multiplier(pct, PAY_BANDS)
 
@@ -161,9 +176,10 @@ def render_monitor_page():
         kicker="Etapa 4",
     )
     render_operation_status()
+    data_marker = str((st.session_state.get("kaisan_operation_status") or {}).get("time", ""))
 
     evaluator_options = evaluator_options_for_current_user(
-        evaluator_options_from_df(list_active_leadership_evaluators())
+        evaluator_options_from_df(cached_monitor_evaluators(data_marker))
     )
     if not evaluator_options:
         st.error("Cadastre ou ative pelo menos um funcionário como coordenação/supervisão para selecionar o avaliador.")
@@ -179,12 +195,7 @@ def render_monitor_page():
     year, month_num = map(int, month.split("-"))
     weeks_iso = [w.isoformat() for w in weeks_for_competencia(year, month_num)]
 
-    monitors_all = fetch_df("""
-        SELECT id, name, sector, role, monitor_start_date
-        FROM employees
-        WHERE active = 1 AND is_monitor = 1 AND COALESCE(is_leadership, 0) = 0
-        ORDER BY sector, role, name
-    """)
+    monitors_all = cached_active_monitors(data_marker)
 
     if monitors_all.empty:
         st.info("Nenhum funcionário marcado como MONITOR.")

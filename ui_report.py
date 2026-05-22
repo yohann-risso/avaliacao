@@ -538,7 +538,8 @@ def fetch_weekly_evaluations_for_weeks(weeks_iso: list[str], employee_ids: list[
     )
 
 
-def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
+@st.cache_data(ttl=90, show_spinner=False)
+def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: str = "") -> dict:
     month = normalize_month_label(month)
     weeks_iso = [str(w).strip() for w in weeks_iso]
     empty = pd.DataFrame()
@@ -897,8 +898,8 @@ def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
     }
 
 
-def render_closing_check(month: str, weeks_iso: list[str]):
-    checks = build_closing_check_tables(month, weeks_iso)
+def render_closing_check(month: str, weeks_iso: list[str], data_marker: str = ""):
+    checks = build_closing_check_tables(month, weeks_iso, data_marker)
     summary = checks["summary"]
     expected = int(summary["expected"] or 0)
     done = int(summary["done"] or 0)
@@ -1035,7 +1036,8 @@ def render_closing_check(month: str, weeks_iso: list[str]):
 # -----------------------------
 # Data builders
 # -----------------------------
-def build_month_df(month: str) -> tuple[pd.DataFrame, list[str]]:
+@st.cache_data(ttl=90, show_spinner=False)
+def build_month_df(month: str, data_marker: str = "") -> tuple[pd.DataFrame, list[str]]:
     """
     Monta dataframe consolidado do mês (tela).
     Inclui _employee_id para joins corretos no anexo RH.
@@ -1403,12 +1405,16 @@ def _feedback_text(
     return f"Média geral {avg_text}. Revisar desvios do período e combinar próximo acompanhamento."
 
 
-def build_sector_followup_tables(month: str, sector_filter: str = "(Todos)") -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
+def build_sector_followup_tables(
+    month: str,
+    sector_filter: str = "(Todos)",
+    data_marker: str = "",
+) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     """
     Monta uma visão unificada para feedback e acompanhamento por setor.
     Retorna: resumo por setor, acompanhamento por funcionário e semanas da competência.
     """
-    month_df, weeks_iso = build_month_df(month)
+    month_df, weeks_iso = build_month_df(month, data_marker)
     if month_df.empty:
         return pd.DataFrame(), pd.DataFrame(), weeks_iso
 
@@ -2454,6 +2460,7 @@ def render_report_page():
         kicker="Etapa 5",
     )
     render_operation_status()
+    data_marker = str((st.session_state.get("kaisan_operation_status") or {}).get("time", ""))
 
     top_left, top_right = st.columns([2.6, 1], gap="large", vertical_alignment="bottom")
     with top_left:
@@ -2475,12 +2482,12 @@ def render_report_page():
     with tabs[0]:
         render_divider()
         try:
-            df, weeks_iso = build_month_df(month)
+            df, weeks_iso = build_month_df(month, data_marker)
         except Exception:
             st.error("Mês inválido. Use MM/AAAA (ex.: 05/2026).")
             return
 
-        render_closing_check(month, weeks_iso)
+        render_closing_check(month, weeks_iso, data_marker)
 
         with st.expander("Semanas consideradas no fechamento"):
             st.write([week_label(datetime.strptime(w, "%Y-%m-%d").date()) for w in weeks_iso])
@@ -2661,7 +2668,11 @@ def render_report_page():
         sector_label = "Todos os setores" if selected_sector == "(Todos)" else selected_sector
 
         try:
-            sector_summary_df, sector_employee_df, sector_weeks_iso = build_sector_followup_tables(month, selected_sector)
+            sector_summary_df, sector_employee_df, sector_weeks_iso = build_sector_followup_tables(
+                month,
+                selected_sector,
+                data_marker,
+            )
         except Exception:
             st.error("Não foi possível montar o relatório unificado do setor para a competência selecionada.")
             return
@@ -2836,7 +2847,7 @@ def render_report_page():
                 summary_row = summary_match.iloc[0].to_dict()
 
         if not summary_row:
-            detail_month_df, _ = build_month_df(month)
+            detail_month_df, _ = build_month_df(month, data_marker)
             if not detail_month_df.empty and "_employee_id" in detail_month_df.columns:
                 summary_match = detail_month_df[detail_month_df["_employee_id"].astype(int) == int(employee_id)]
                 if not summary_match.empty:

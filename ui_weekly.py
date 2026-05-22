@@ -60,6 +60,16 @@ from ui_auth import current_evaluator_name, evaluator_options_for_current_user
 # -----------------------------
 # Helpers
 # -----------------------------
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_active_employees(data_marker: str = "") -> pd.DataFrame:
+    return list_active_employees()
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_active_leadership_evaluators(data_marker: str = "") -> pd.DataFrame:
+    return list_active_leadership_evaluators()
+
+
 CRITERIA_RULES = {
     "Assiduidade": {
         "100%": "sem faltas e sem atrasos relevantes",
@@ -1509,11 +1519,12 @@ def page_weekly():
         kicker="Etapa 3",
     )
     render_operation_status()
+    data_marker = str((st.session_state.get("kaisan_operation_status") or {}).get("time", ""))
 
     with st.spinner("Carregando funcionários ativos do banco..."):
-        all_active_emp = list_active_employees()
+        all_active_emp = cached_active_employees(data_marker)
         evaluator_options = evaluator_options_for_current_user(
-            evaluator_options_from_df(list_active_leadership_evaluators())
+            evaluator_options_from_df(cached_active_leadership_evaluators(data_marker))
         )
     emp = all_active_emp.copy()
     if "is_leadership" in emp.columns:

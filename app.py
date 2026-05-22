@@ -10,11 +10,6 @@ from db import (
 from security import log_sanitized_exception, redact_sensitive
 from theme import apply_kaisan_admin_theme, render_sidebar_navigation
 from ui_auth import current_user, is_admin_user, render_user_sidebar, require_login
-from ui_employees import page_employees
-from ui_users import page_users
-from ui_weekly import page_weekly
-from ui_monitor import render_monitor_page
-from ui_report import build_closing_check_tables, render_report_page
 from utils import current_month_br, month_label_to_br, weeks_for_competencia
 
 
@@ -25,11 +20,11 @@ st.set_page_config(
 )
 
 NAV_QUERY_KEY = "tela"
+NAV_WIDGET_KEY = "main_menu_nav"
 
 
 @st.cache_data(ttl=45, show_spinner=False)
 def _sidebar_snapshot(
-    active_menu: str,
     menu_options_key: tuple[str, ...],
     data_marker: str = "",
 ) -> tuple[list[dict], list[dict], str]:
@@ -48,18 +43,25 @@ def _sidebar_snapshot(
     missing_monitoria = 0
 
     try:
+        year, month_num = map(int, month.split("-"))
+        weeks_iso = [w.isoformat() for w in weeks_for_competencia(year, month_num)]
+        week_placeholders = ",".join(["?"] * len(weeks_iso))
+
         people = fetch_df(
             """
             SELECT
                 SUM(CASE WHEN active = 1 THEN 1 ELSE 0 END) AS active_count,
+                SUM(CASE WHEN active = 1 AND COALESCE(is_leadership, 0) = 0 THEN 1 ELSE 0 END) AS evaluable_count,
                 SUM(CASE WHEN active = 1 AND is_monitor = 1 AND COALESCE(is_leadership, 0) = 0 THEN 1 ELSE 0 END) AS monitor_count,
                 SUM(CASE WHEN active = 1 AND COALESCE(is_leadership, 0) = 1 THEN 1 ELSE 0 END) AS leadership_count
             FROM employees
             """
         )
+        evaluable_count = 0
         if not people.empty:
             row = people.iloc[0]
             active_count = int(row.get("active_count", 0) or 0)
+            evaluable_count = int(row.get("evaluable_count", 0) or 0)
             monitor_count = int(row.get("monitor_count", 0) or 0)
             leadership_count = int(row.get("leadership_count", 0) or 0)
 
@@ -76,14 +78,45 @@ def _sidebar_snapshot(
             user_count = int(row.get("user_count", 0) or 0)
             linked_user_count = int(row.get("linked_user_count", 0) or 0)
 
-        year, month_num = map(int, month.split("-"))
-        weeks_iso = [w.isoformat() for w in weeks_for_competencia(year, month_num)]
-        checks = build_closing_check_tables(month, weeks_iso)
-        summary = checks.get("summary", {})
-        expected = int(summary.get("expected", 0) or 0)
-        done = int(summary.get("done", 0) or 0)
-        issues = int(summary.get("issues", 0) or 0)
-        missing_monitoria = int(len(checks.get("missing_monitoria", [])) + len(checks.get("missing_monitoria_justs", [])))
+        expected = int(evaluable_count * len(weeks_iso))
+        if weeks_iso:
+            weekly = fetch_df(
+                f"""
+                SELECT COUNT(*) AS done
+                FROM (
+                    SELECT
+                        w.employee_id,
+                        TRIM(CAST(w.week_start AS TEXT)) AS week_start
+                    FROM weekly_evaluations w
+                    JOIN employees e ON e.id = w.employee_id
+                    WHERE COALESCE(e.active, 1) = 1
+                      AND COALESCE(e.is_leadership, 0) = 0
+                      AND TRIM(CAST(w.week_start AS TEXT)) IN ({week_placeholders})
+                    GROUP BY w.employee_id, TRIM(CAST(w.week_start AS TEXT))
+                ) coverage
+                """,
+                tuple(weeks_iso),
+            )
+            if not weekly.empty:
+                done = int(weekly.iloc[0].get("done", 0) or 0)
+
+        monitor_done = 0
+        monitoria = fetch_df(
+            """
+            SELECT COUNT(DISTINCT m.employee_id) AS done
+            FROM monitor_monthly_evaluations m
+            JOIN employees e ON e.id = m.employee_id
+            WHERE TRIM(CAST(m.month AS TEXT)) = ?
+              AND COALESCE(e.active, 1) = 1
+              AND COALESCE(e.is_monitor, 0) = 1
+              AND COALESCE(e.is_leadership, 0) = 0
+            """,
+            (month,),
+        )
+        if not monitoria.empty:
+            monitor_done = int(monitoria.iloc[0].get("done", 0) or 0)
+        missing_monitoria = max(0, int(monitor_count) - monitor_done)
+        issues = max(0, expected - done) + missing_monitoria
     except Exception:
         pass
 
@@ -125,7 +158,6 @@ def _sidebar_snapshot(
     for option in menu_options:
         step = dict(step_defs.get(option, {"title": option, "detail": "", "tone": "neutral"}))
         step["option"] = option
-        step["active"] = option == active_menu
         steps.append(step)
 
     stats = [
@@ -178,19 +210,37 @@ query_menu = st.query_params.get(NAV_QUERY_KEY, "")
 if isinstance(query_menu, list):
     query_menu = query_menu[0] if query_menu else ""
 
-current_menu = query_menu if query_menu in menu_options else st.session_state.get("main_menu", menu_options[0])
+if "main_menu" not in st.session_state:
+    st.session_state["main_menu"] = query_menu if query_menu in menu_options else menu_options[0]
+
+current_menu = st.session_state.get("main_menu", menu_options[0])
 if current_menu not in menu_options:
     current_menu = menu_options[0]
 st.session_state["main_menu"] = current_menu
+if st.session_state.get(NAV_WIDGET_KEY) not in menu_options:
+    st.session_state[NAV_WIDGET_KEY] = current_menu
 
 operation_status = st.session_state.get("kaisan_operation_status") or {}
 sidebar_marker = str(operation_status.get("time", ""))
 sidebar_steps, sidebar_stats, sidebar_month = _sidebar_snapshot(
-    current_menu,
     tuple(menu_options),
     sidebar_marker,
 )
-render_sidebar_navigation(sidebar_month, sidebar_steps, sidebar_stats, query_key=NAV_QUERY_KEY)
+for step in sidebar_steps:
+    step["active"] = step.get("option") == current_menu
+
+selected_menu = render_sidebar_navigation(
+    sidebar_month,
+    sidebar_steps,
+    sidebar_stats,
+    query_key=NAV_QUERY_KEY,
+    key=NAV_WIDGET_KEY,
+)
+if selected_menu and selected_menu != current_menu:
+    st.session_state["main_menu"] = selected_menu
+    st.query_params[NAV_QUERY_KEY] = selected_menu
+    st.rerun()
+
 render_user_sidebar()
 
 menu = current_menu
@@ -201,16 +251,26 @@ st.sidebar.caption(
 )
 
 if menu == "1. Funcionários":
+    from ui_employees import page_employees
+
     page_employees()
 
 elif menu == "2. Usuários":
+    from ui_users import page_users
+
     page_users()
 
 elif menu == "3. Avaliação Semanal":
+    from ui_weekly import page_weekly
+
     page_weekly()
 
 elif menu == "4. Monitoria Mensal":
+    from ui_monitor import render_monitor_page
+
     render_monitor_page()
 
 elif menu == "5. Relatório Mensal":
+    from ui_report import render_report_page
+
     render_report_page()
