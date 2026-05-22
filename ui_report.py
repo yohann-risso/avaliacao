@@ -678,7 +678,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         JOIN employees e ON e.id = w.employee_id
         WHERE {clean_expr} IN ({week_placeholders})
           AND COALESCE(e.is_leadership, 0) = 0
-        GROUP BY w.employee_id, {clean_expr}
+        GROUP BY w.employee_id, e.name, e.sector, e.role, {clean_expr}
         HAVING COUNT(*) > 1
         ORDER BY e.name, Semana
         """,
