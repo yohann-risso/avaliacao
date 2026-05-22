@@ -14,9 +14,11 @@ from constants import TENURE_BONUS_PER_YEAR
 from theme import (
     mark_operation_status,
     render_divider,
+    render_focus_strip,
     render_operation_status,
     render_page_header,
     render_section_header,
+    render_status_cards,
 )
 from ui_auth import current_user, require_admin
 from utils import date_iso_to_br, datetime_iso_to_br, brl
@@ -217,12 +219,55 @@ def page_employees():
             filtered = filtered[filtered["Status"] == "DESATIVADO"]
 
         # ---------- Resumo ----------
-        cA, cB, cC, cD, cE = st.columns(5, gap="medium")
-        cA.metric("Ativos", int((show["Status"] == "ATIVO").sum()))
-        cB.metric("Exibidos (filtro)", len(filtered))
-        cC.metric("Monitores", int((show["Monitor"] == "SIM").sum()))
-        cD.metric("Coord./Supervisão", int((show["Coord./Supervisão"] == "SIM").sum()))
-        cE.metric("Desativados", int((show["Status"] == "DESATIVADO").sum()))
+        missing_hire = int((show["Contratação"].astype(str).str.strip().isin(["", "-"])).sum())
+        missing_monitor_start = int(((show["Monitor"] == "SIM") & (show["Monitor desde"].astype(str).str.strip().isin(["", "-"]))).sum())
+        missing_leadership_start = int(((show["Coord./Supervisão"] == "SIM") & (show["Coord./Supervisão desde"].astype(str).str.strip().isin(["", "-"]))).sum())
+        cadastro_issues = missing_hire + missing_monitor_start + missing_leadership_start
+
+        render_status_cards([
+            {
+                "title": "Ativos",
+                "value": int((show["Status"] == "ATIVO").sum()),
+                "detail": "Entram nos fluxos da competência.",
+                "tone": "success",
+            },
+            {
+                "title": "Exibidos",
+                "value": len(filtered),
+                "detail": "Resultado do filtro atual.",
+                "tone": "info",
+            },
+            {
+                "title": "Monitores",
+                "value": int((show["Monitor"] == "SIM").sum()),
+                "detail": "Elegíveis para monitoria mensal quando data permitir.",
+                "tone": "info",
+            },
+            {
+                "title": "Coord./Sup.",
+                "value": int((show["Coord./Supervisão"] == "SIM").sum()),
+                "detail": "Aparecem no relatório separado.",
+                "tone": "violet",
+            },
+            {
+                "title": "Pendências cadastro",
+                "value": cadastro_issues,
+                "detail": "Datas obrigatórias que podem travar fechamento.",
+                "tone": "success" if cadastro_issues == 0 else "warning",
+            },
+        ])
+
+        if cadastro_issues:
+            render_focus_strip(
+                "Completar datas obrigatórias do cadastro.",
+                "Contratação, Monitor desde e Coord./Sup. desde controlam elegibilidade e fechamento.",
+                [
+                    {"label": f"{missing_hire} contratação", "tone": "warning"},
+                    {"label": f"{missing_monitor_start} monitor", "tone": "warning"},
+                    {"label": f"{missing_leadership_start} coord./sup.", "tone": "warning"},
+                ],
+                "warning",
+            )
 
         render_divider()
 

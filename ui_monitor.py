@@ -10,7 +10,9 @@ from theme import (
     mark_operation_status,
     render_operation_status,
     render_page_header,
+    render_progress_panel,
     render_section_header,
+    render_stage_grid,
     render_status_cards,
 )
 
@@ -268,6 +270,44 @@ def render_monitor_page():
             "title": "Fluxo",
             "value": "3 etapas",
             "detail": "Critérios, justificativas e confirmação final.",
+            "tone": "info",
+        },
+    ])
+
+    current_monitor_justs = st.session_state.get("mon_justs", {})
+    filled_monitor_justs = sum(1 for v in current_monitor_justs.values() if str(v).strip())
+    monitor_progress = round((filled_monitor_justs / len(MONITOR_MONTHLY_CRITERIA)) * 100, 1)
+    render_progress_panel(
+        "Progresso da monitoria",
+        f"{filled_monitor_justs}/{len(MONITOR_MONTHLY_CRITERIA)} justificativas preenchidas",
+        "Critérios, evidências e confirmação precisam estar completos antes de salvar.",
+        progress=monitor_progress,
+        tone="success" if filled_monitor_justs == len(MONITOR_MONTHLY_CRITERIA) else "warning",
+        meta=f"{monitor_progress:.1f}% pronto",
+    )
+    render_stage_grid([
+        {
+            "status": "Atual",
+            "title": "Competência",
+            "detail": month_br,
+            "tone": "info",
+        },
+        {
+            "status": "Carregado" if not existing.empty else "Novo",
+            "title": "Origem",
+            "detail": origem,
+            "tone": "success" if not existing.empty else "neutral",
+        },
+        {
+            "status": "Pendente" if filled_monitor_justs < len(MONITOR_MONTHLY_CRITERIA) else "Pronto",
+            "title": "Evidências",
+            "detail": f"{filled_monitor_justs} de {len(MONITOR_MONTHLY_CRITERIA)} justificativas.",
+            "tone": "success" if filled_monitor_justs == len(MONITOR_MONTHLY_CRITERIA) else "warning",
+        },
+        {
+            "status": "Revisar",
+            "title": "Salvar",
+            "detail": "Confirmação final grava a monitoria do mês.",
             "tone": "info",
         },
     ])

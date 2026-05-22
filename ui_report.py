@@ -6,9 +6,18 @@ import streamlit as st
 from datetime import date, datetime
 from xml.sax.saxutils import escape as xml_escape
 
-from db import fetch_df, normalize_month_label
+from db import fetch_df, normalize_month_label, sql_clean_text_expr, sql_group_concat, sql_quote
 from constants import WEEKLY_CRITERIA, MONITOR_MONTHLY_CRITERIA, TENURE_BONUS_PER_YEAR
-from theme import render_divider, render_operation_status, render_page_header, render_section_header
+from theme import (
+    render_divider,
+    render_focus_strip,
+    render_operation_status,
+    render_page_header,
+    render_progress_panel,
+    render_section_header,
+    render_stage_grid,
+    render_status_cards,
+)
 from utils import (
     brl,
     current_month_br,
@@ -467,7 +476,7 @@ def _get_weekly_justs_from_row(row: dict) -> dict:
 
 def _clean_week_start_sql(alias: str = "w") -> str:
     col = f"{alias}.week_start" if alias else "week_start"
-    return f"REPLACE(REPLACE(TRIM({col}), char(13), ''), char(10), '')"
+    return sql_clean_text_expr(col)
 
 
 def fetch_weekly_evaluations_for_weeks(weeks_iso: list[str], employee_ids: list[int] | None = None) -> pd.DataFrame:
@@ -671,7 +680,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
             e.role AS Função,
             {clean_expr} AS Semana,
             COUNT(*) AS Registros,
-            GROUP_CONCAT(w.id, ', ') AS IDs
+            {sql_group_concat("w.id")} AS IDs
         FROM weekly_evaluations w
         JOIN employees e ON e.id = w.employee_id
         WHERE {clean_expr} IN ({week_placeholders})
@@ -688,7 +697,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
         SELECT
             e.name AS Funcionário,
             w.id AS ID,
-            quote(w.week_start) AS Data_gravada,
+            {sql_quote("w.week_start")} AS Data_gravada,
             {clean_expr} AS Data_corrigida
         FROM weekly_evaluations w
         JOIN employees e ON e.id = w.employee_id
@@ -900,19 +909,115 @@ def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
 def render_closing_check(month: str, weeks_iso: list[str]):
     checks = build_closing_check_tables(month, weeks_iso)
     summary = checks["summary"]
+    expected = int(summary["expected"] or 0)
+    done = int(summary["done"] or 0)
+    issues = int(summary["issues"] or 0)
+    coverage = round((done / expected) * 100, 1) if expected else 0.0
 
-    with st.expander("Checklist de fechamento", expanded=summary["issues"] > 0):
-        m1, m2, m3 = st.columns(3, gap="medium")
-        m1.metric("Avaliações esperadas", int(summary["expected"]))
-        m2.metric("Avaliações encontradas", int(summary["done"]))
-        m3.metric("Pendências", int(summary["issues"]))
+    weekly_missing = int(len(checks["missing_weekly"]) + len(checks["missing_weekly_justs"]))
+    monitor_missing = int(len(checks["missing_monitoria"]) + len(checks["missing_monitoria_justs"]))
+    cadastro_missing = int(
+        len(checks["missing_hire_dates"])
+        + len(checks["missing_monitor_start_dates"])
+        + len(checks["missing_leadership_start_dates"])
+    )
+    data_issues = int(
+        len(checks["duplicate_weekly"])
+        + len(checks["bad_week_dates"])
+        + len(checks["pre_hire_weekly"])
+        + len(checks["leadership_weekly"])
+    )
 
-        if summary["issues"] == 0:
-            st.success("Fechamento sem pendências críticas para as semanas, justificativas e monitoria.")
-            return
+    tone = "success" if issues == 0 and expected else ("danger" if issues else "warning")
+    render_progress_panel(
+        "Fechamento mensal",
+        f"{done}/{expected} avaliações encontradas",
+        "Cobertura das semanas elegíveis da competência selecionada.",
+        progress=coverage,
+        tone=tone,
+        meta=f"{coverage:.1f}% cobertura",
+    )
 
-        st.warning("Revise as pendências antes de gerar o PDF final.")
+    render_status_cards([
+        {
+            "title": "Pendências",
+            "value": str(issues),
+            "detail": "Itens que precisam ser tratados antes do fechamento.",
+            "tone": "success" if issues == 0 else "danger",
+        },
+        {
+            "title": "Semanais",
+            "value": str(weekly_missing),
+            "detail": "Avaliações ou justificativas semanais faltantes.",
+            "tone": "success" if weekly_missing == 0 else "warning",
+        },
+        {
+            "title": "Monitoria",
+            "value": str(monitor_missing),
+            "detail": "Monitorias mensais ou justificativas pendentes.",
+            "tone": "success" if monitor_missing == 0 else "warning",
+        },
+        {
+            "title": "Base cadastral",
+            "value": str(cadastro_missing),
+            "detail": "Datas obrigatórias ausentes no cadastro.",
+            "tone": "success" if cadastro_missing == 0 else "warning",
+        },
+        {
+            "title": "Auditoria",
+            "value": str(data_issues),
+            "detail": "Duplicidades, datas sujas ou registros fora da regra.",
+            "tone": "success" if data_issues == 0 else "warning",
+        },
+    ])
 
+    render_stage_grid([
+        {
+            "status": "Pronto" if cadastro_missing == 0 else "Atenção",
+            "title": "Base conferida",
+            "detail": "Cadastros, datas e elegibilidade.",
+            "tone": "success" if cadastro_missing == 0 else "warning",
+        },
+        {
+            "status": "Pronto" if weekly_missing == 0 else "Atenção",
+            "title": "Semanais",
+            "detail": "Cobertura de avaliações e justificativas.",
+            "tone": "success" if weekly_missing == 0 else "warning",
+        },
+        {
+            "status": "Pronto" if monitor_missing == 0 else "Atenção",
+            "title": "Monitoria",
+            "detail": "Registros mensais dos monitores elegíveis.",
+            "tone": "success" if monitor_missing == 0 else "warning",
+        },
+        {
+            "status": "Liberado" if issues == 0 and expected else "Bloqueado",
+            "title": "Exportação",
+            "detail": "PDF e CSV devem vir depois da conferência.",
+            "tone": "success" if issues == 0 and expected else "danger",
+        },
+    ])
+
+    if issues == 0:
+        render_focus_strip(
+            "Fechamento sem bloqueios críticos.",
+            "A conferência pode seguir para exportação e assinatura.",
+            [{"label": "Pronto para PDF", "tone": "success"}],
+            "success",
+        )
+    else:
+        render_focus_strip(
+            "Tratar pendências antes de gerar o relatório final.",
+            "Comece por avaliações faltantes, justificativas incompletas e monitorias sem registro.",
+            [
+                {"label": f"{weekly_missing} semanais", "tone": "danger" if weekly_missing else "success"},
+                {"label": f"{monitor_missing} monitoria", "tone": "warning" if monitor_missing else "success"},
+                {"label": f"{cadastro_missing} cadastro", "tone": "warning" if cadastro_missing else "success"},
+            ],
+            "danger",
+        )
+
+    with st.expander("Ver tabelas de pendências e auditoria", expanded=issues > 0):
         sections = [
             ("Avaliações semanais faltantes", checks["missing_weekly"]),
             ("Avaliações semanais duplicadas", checks["duplicate_weekly"]),
@@ -931,6 +1036,9 @@ def render_closing_check(month: str, weeks_iso: list[str]):
             if table is not None and not table.empty:
                 st.markdown(f"#### {title}")
                 st.dataframe(table, width="stretch", hide_index=True)
+
+        if issues == 0:
+            st.success("Não há pendências críticas para as semanas, justificativas e monitoria.")
 
 
 # -----------------------------
@@ -2372,10 +2480,10 @@ def render_report_page():
             st.error("Mês inválido. Use MM/AAAA (ex.: 05/2026).")
             return
 
+        render_closing_check(month, weeks_iso)
+
         with st.expander("Semanas consideradas no fechamento"):
             st.write([week_label(datetime.strptime(w, "%Y-%m-%d").date()) for w in weeks_iso])
-
-        render_closing_check(month, weeks_iso)
 
         if df.empty:
             st.info("Sem dados para o período (ou sem funcionários ativos).")

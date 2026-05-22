@@ -2,16 +2,159 @@
 
 import hashlib
 import hmac
+import os
 import secrets
 import sqlite3
 from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import pandas as pd
 
 APP_DIR = Path(__file__).resolve().parent
 DB_PATH = str(APP_DIR / "avaliacoes.db")
 PASSWORD_HASH_ITERATIONS = 390_000
+DATABASE_URL_ENV_KEYS = ("APP_DATABASE_URL", "DATABASE_URL", "SUPABASE_DB_URL")
+DATABASE_CONFIG_ERROR = (
+    "Banco Supabase/PostgreSQL não configurado. Defina APP_DATABASE_URL nos Secrets "
+    "do Streamlit Cloud ou no ambiente local. O app não usa mais avaliacoes.db como fallback."
+)
+
+
+def get_database_url() -> str:
+    for key in DATABASE_URL_ENV_KEYS:
+        value = os.environ.get(key)
+        if value:
+            return str(value).strip()
+
+    try:
+        import streamlit as st
+
+        secrets_obj = st.secrets
+    except Exception:
+        return ""
+
+    secret_paths = (
+        ("APP_DATABASE_URL",),
+        ("DATABASE_URL",),
+        ("SUPABASE_DB_URL",),
+        ("database", "url"),
+        ("connections", "supabase", "url"),
+        ("connections", "postgres", "url"),
+    )
+    for path in secret_paths:
+        try:
+            current = secrets_obj
+            for key in path:
+                current = current[key]
+            if current:
+                return str(current).strip()
+        except Exception:
+            continue
+
+    return ""
+
+
+def is_postgres_backend() -> bool:
+    url = get_database_url().lower()
+    return url.startswith(("postgres://", "postgresql://"))
+
+
+def is_sqlite_test_backend() -> bool:
+    return os.environ.get("AVALIACAO_ALLOW_SQLITE", "").strip() == "1"
+
+
+def require_postgres_database_url() -> str:
+    url = get_database_url()
+    if not url:
+        raise RuntimeError(DATABASE_CONFIG_ERROR)
+    if not url.lower().startswith(("postgres://", "postgresql://")):
+        raise RuntimeError("APP_DATABASE_URL deve ser uma connection string PostgreSQL/Supabase.")
+    return url
+
+
+def _database_url_with_ssl(url: str) -> str:
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.setdefault("sslmode", "require")
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _connect_postgres():
+    try:
+        import psycopg
+    except ImportError as exc:
+        raise RuntimeError(
+            "Para usar Supabase/PostgreSQL, instale as dependências com "
+            "`python -m pip install -r requirements.txt`."
+        ) from exc
+
+    return psycopg.connect(
+        _database_url_with_ssl(require_postgres_database_url()),
+        connect_timeout=15,
+        prepare_threshold=None,
+    )
+
+
+def _prepare_query(query: str) -> str:
+    if not is_sqlite_test_backend():
+        return str(query).replace("?", "%s")
+    return str(query)
+
+
+class CompatConnection:
+    def __init__(self, con):
+        self._con = con
+
+    def execute(self, query: str, params: tuple | list = ()):
+        return self._con.execute(_prepare_query(query), params or ())
+
+    def executemany(self, query: str, params_seq):
+        query = _prepare_query(query)
+        if hasattr(self._con, "executemany"):
+            return self._con.executemany(query, params_seq)
+        with self._con.cursor() as cur:
+            cur.executemany(query, params_seq)
+            return cur
+
+    def commit(self):
+        return self._con.commit()
+
+    def rollback(self):
+        return self._con.rollback()
+
+    def close(self):
+        return self._con.close()
+
+
+def _column_name(description) -> str:
+    return str(getattr(description, "name", None) or description[0])
+
+
+def _read_sql_query(con: CompatConnection, query: str, params: tuple = ()) -> pd.DataFrame:
+    cur = con.execute(query, params)
+    if not cur.description:
+        return pd.DataFrame()
+    columns = [_column_name(desc) for desc in cur.description]
+    return pd.DataFrame(cur.fetchall(), columns=columns)
+
+
+def sql_clean_text_expr(expr: str) -> str:
+    newline_fn = "char" if is_sqlite_test_backend() else "CHR"
+    return f"REPLACE(REPLACE(TRIM({expr}), {newline_fn}(13), ''), {newline_fn}(10), '')"
+
+
+def sql_group_concat(expr: str, separator: str = ", ") -> str:
+    safe_separator = separator.replace("'", "''")
+    if is_sqlite_test_backend():
+        return f"GROUP_CONCAT({expr}, '{safe_separator}')"
+    return f"STRING_AGG(({expr})::text, '{safe_separator}')"
+
+
+def sql_quote(expr: str) -> str:
+    if is_sqlite_test_backend():
+        return f"quote({expr})"
+    return f"QUOTE_LITERAL({expr})"
 
 
 def normalize_week_start_iso(value) -> str:
@@ -114,9 +257,15 @@ def sync_employee_active_status(con):
 
 @contextmanager
 def db():
-    con = sqlite3.connect(DB_PATH, timeout=30)
-    con.execute("PRAGMA foreign_keys = ON;")
-    con.execute("PRAGMA busy_timeout = 10000;")
+    if is_sqlite_test_backend():
+        raw_con = sqlite3.connect(DB_PATH, timeout=30)
+        raw_con.execute("PRAGMA foreign_keys = ON;")
+        raw_con.execute("PRAGMA busy_timeout = 10000;")
+    else:
+        require_postgres_database_url()
+        raw_con = _connect_postgres()
+
+    con = CompatConnection(raw_con)
     try:
         yield con
         con.commit()
@@ -128,7 +277,7 @@ def db():
 
 def fetch_df(query: str, params: tuple = ()) -> pd.DataFrame:
     with db() as con:
-        return pd.read_sql_query(query, con, params=params)
+        return _read_sql_query(con, query, params=params)
 
 def exec_sql(query: str, params: tuple = ()):
     with db() as con:
@@ -139,7 +288,174 @@ def ensure_column(con, table: str, col: str, coldef: str):
     if col not in cols:
         con.execute(f"ALTER TABLE {table} ADD COLUMN {coldef};")
 
+
+def init_postgres_db():
+    with db() as con:
+        con.execute("""
+        CREATE TABLE IF NOT EXISTS login_users (
+            id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            username TEXT NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'admin',
+            active INTEGER NOT NULL DEFAULT 1,
+            last_login_at TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT ''
+        );
+        """)
+        con.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_login_users_username_lower ON login_users (LOWER(username));")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_login_users_active ON login_users(active, username);")
+
+        con.execute("""
+        CREATE TABLE IF NOT EXISTS employees (
+            id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            name TEXT NOT NULL,
+            sector TEXT NOT NULL,
+            role TEXT NOT NULL,
+            hire_date TEXT NOT NULL DEFAULT '',
+            monitor_start_date TEXT NOT NULL DEFAULT '',
+            leadership_start_date TEXT NOT NULL DEFAULT '',
+            termination_date TEXT NOT NULL DEFAULT '',
+            is_monitor INTEGER NOT NULL DEFAULT 0,
+            is_leadership INTEGER NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1,
+            deactivated_at TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL,
+            created_by_user_id INTEGER,
+            created_by_username TEXT NOT NULL DEFAULT '',
+            updated_by_user_id INTEGER,
+            updated_by_username TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL DEFAULT ''
+        );
+        """)
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS hire_date TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS monitor_start_date TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS leadership_start_date TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS termination_date TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_leadership INTEGER NOT NULL DEFAULT 0;")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS deactivated_at TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER;")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS created_by_username TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS updated_by_user_id INTEGER;")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS updated_by_username TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS updated_at TEXT NOT NULL DEFAULT '';")
+
+        con.execute("""
+        CREATE TABLE IF NOT EXISTS weekly_evaluations (
+            id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+            week_start TEXT NOT NULL,
+            evaluator TEXT,
+            notes TEXT,
+            assiduidade_pct REAL NOT NULL DEFAULT 100,
+            qualidade_pct REAL NOT NULL DEFAULT 100,
+            taxa_erros_pct REAL NOT NULL DEFAULT 100,
+            produtividade_pct REAL NOT NULL DEFAULT 100,
+            comportamento_pct REAL NOT NULL DEFAULT 100,
+            efficiency_pct REAL NOT NULL DEFAULT 100,
+            items_count INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            assiduidade_just TEXT NOT NULL DEFAULT '',
+            qualidade_just TEXT NOT NULL DEFAULT '',
+            taxa_erros_just TEXT NOT NULL DEFAULT '',
+            produtividade_just TEXT NOT NULL DEFAULT '',
+            comportamento_just TEXT NOT NULL DEFAULT '',
+            UNIQUE(employee_id, week_start)
+        );
+        """)
+        con.execute("ALTER TABLE weekly_evaluations ADD COLUMN IF NOT EXISTS efficiency_pct REAL NOT NULL DEFAULT 100;")
+        con.execute("ALTER TABLE weekly_evaluations ADD COLUMN IF NOT EXISTS items_count INTEGER NOT NULL DEFAULT 0;")
+        con.execute("ALTER TABLE weekly_evaluations ADD COLUMN IF NOT EXISTS assiduidade_just TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE weekly_evaluations ADD COLUMN IF NOT EXISTS qualidade_just TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE weekly_evaluations ADD COLUMN IF NOT EXISTS taxa_erros_just TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE weekly_evaluations ADD COLUMN IF NOT EXISTS produtividade_just TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE weekly_evaluations ADD COLUMN IF NOT EXISTS comportamento_just TEXT NOT NULL DEFAULT '';")
+
+        con.execute("""
+        CREATE TABLE IF NOT EXISTS monitor_monthly_evaluations (
+            id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+            month TEXT NOT NULL,
+            evaluator TEXT,
+            notes TEXT,
+            acomp_metas_pct REAL NOT NULL DEFAULT 100,
+            org_fluxo_pct REAL NOT NULL DEFAULT 100,
+            suporte_equipe_pct REAL NOT NULL DEFAULT 100,
+            disciplina_oper_pct REAL NOT NULL DEFAULT 100,
+            created_at TEXT NOT NULL,
+            acomp_metas_just TEXT NOT NULL DEFAULT '',
+            org_fluxo_just TEXT NOT NULL DEFAULT '',
+            suporte_equipe_just TEXT NOT NULL DEFAULT '',
+            disciplina_oper_just TEXT NOT NULL DEFAULT '',
+            UNIQUE(employee_id, month)
+        );
+        """)
+        con.execute("ALTER TABLE monitor_monthly_evaluations ADD COLUMN IF NOT EXISTS acomp_metas_just TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE monitor_monthly_evaluations ADD COLUMN IF NOT EXISTS org_fluxo_just TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE monitor_monthly_evaluations ADD COLUMN IF NOT EXISTS suporte_equipe_just TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE monitor_monthly_evaluations ADD COLUMN IF NOT EXISTS disciplina_oper_just TEXT NOT NULL DEFAULT '';")
+
+        con.execute("""
+        CREATE TABLE IF NOT EXISTS weekly_errors (
+            id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+            employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+            week_start TEXT NOT NULL,
+            role_snapshot TEXT NOT NULL,
+            error_type TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            qty INTEGER NOT NULL DEFAULT 1,
+            notes TEXT,
+            created_at TEXT NOT NULL
+        );
+        """)
+
+        con.execute("""
+            UPDATE employees
+            SET termination_date = substring(deactivated_at from 1 for 10)
+            WHERE active = 0
+              AND COALESCE(termination_date, '') = ''
+              AND COALESCE(deactivated_at, '') <> ''
+        """)
+        con.execute("""
+            UPDATE employees
+            SET is_monitor = 0,
+                monitor_start_date = ''
+            WHERE COALESCE(is_leadership, 0) = 1
+              AND COALESCE(is_monitor, 0) = 1
+        """)
+        sync_employee_active_status(con)
+
+        con.execute("CREATE INDEX IF NOT EXISTS idx_employees_active_role ON employees(active, is_leadership, sector, role, name);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_weekly_eval_employee_week ON weekly_evaluations(employee_id, week_start);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_weekly_eval_employee_week_desc ON weekly_evaluations(employee_id, week_start DESC);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_weekly_errors_employee_week ON weekly_errors(employee_id, week_start);")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_monitor_eval_employee_month ON monitor_monthly_evaluations(employee_id, month);")
+
+        for table in (
+            "login_users",
+            "employees",
+            "weekly_evaluations",
+            "weekly_errors",
+            "monitor_monthly_evaluations",
+        ):
+            con.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
+        con.execute("""
+        REVOKE ALL ON TABLE
+            login_users,
+            employees,
+            weekly_evaluations,
+            weekly_errors,
+            monitor_monthly_evaluations
+        FROM anon, authenticated;
+        """)
+
+
 def init_db():
+    if not is_sqlite_test_backend():
+        require_postgres_database_url()
+        init_postgres_db()
+        return
+
     with db() as con:
         con.execute("PRAGMA journal_mode = WAL;")
         con.execute("PRAGMA synchronous = NORMAL;")
@@ -345,6 +661,20 @@ def create_login_user(username: str, password: str, role: str = "admin", active:
 
     try:
         with db() as con:
+            params = (username, password_hash, role, 1 if active else 0, now, now)
+            if is_postgres_backend():
+                cur = con.execute(
+                    """
+                    INSERT INTO login_users (
+                        username, password_hash, role, active, created_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    RETURNING id
+                    """,
+                    params,
+                )
+                return int(cur.fetchone()[0])
+
             cur = con.execute(
                 """
                 INSERT INTO login_users (
@@ -352,11 +682,13 @@ def create_login_user(username: str, password: str, role: str = "admin", active:
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (username, password_hash, role, 1 if active else 0, now, now),
+                params,
             )
             return int(cur.lastrowid)
-    except sqlite3.IntegrityError as exc:
-        raise ValueError("Usuário de login já cadastrado.") from exc
+    except Exception as exc:
+        if isinstance(exc, sqlite3.IntegrityError) or getattr(exc, "sqlstate", "") == "23505":
+            raise ValueError("Usuário de login já cadastrado.") from exc
+        raise
 
 
 def authenticate_login(username: str, password: str) -> dict | None:
@@ -602,18 +934,19 @@ def list_weekly_eval_basis(employee_ids: list[int], week_start_iso: str) -> pd.D
     placeholders = ",".join("?" for _ in ids)
 
     with db() as con:
-        current = pd.read_sql_query(
+        current = _read_sql_query(
+            con,
             f"""
             SELECT w.*, 'current' AS basis_source
             FROM weekly_evaluations w
             WHERE w.week_start = ?
               AND w.employee_id IN ({placeholders})
             """,
-            con,
             params=(week_start_iso, *ids),
         )
 
-        previous = pd.read_sql_query(
+        previous = _read_sql_query(
+            con,
             f"""
             SELECT ranked.*, 'previous' AS basis_source
             FROM (
@@ -629,7 +962,6 @@ def list_weekly_eval_basis(employee_ids: list[int], week_start_iso: str) -> pd.D
             ) ranked
             WHERE ranked.rn = 1
             """,
-            con,
             params=(week_start_iso, *ids),
         )
 

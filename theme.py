@@ -108,7 +108,7 @@ def render_status_cards(cards: list[dict]):
     items = []
     for card in cards:
         tone = str(card.get("tone", "info") or "info").lower()
-        if tone not in {"info", "success", "warning", "danger", "neutral"}:
+        if tone not in {"info", "success", "warning", "danger", "neutral", "violet"}:
             tone = "info"
         title = escape(str(card.get("title", "")))
         value = escape(str(card.get("value", "")))
@@ -125,6 +125,154 @@ def render_status_cards(cards: list[dict]):
         f'<div class="kaisan-status-grid">{"".join(items)}</div>',
         unsafe_allow_html=True,
     )
+
+
+def render_status_chip(label: str, tone: str = "info") -> str:
+    tone = str(tone or "info").lower()
+    if tone not in {"info", "success", "warning", "danger", "neutral", "violet"}:
+        tone = "info"
+    return f'<span class="kaisan-chip kaisan-chip-{tone}">{escape(str(label))}</span>'
+
+
+def render_stage_grid(stages: list[dict]):
+    items = []
+    for stage in stages:
+        tone = str(stage.get("tone", "info") or "info").lower()
+        if tone not in {"info", "success", "warning", "danger", "neutral", "violet"}:
+            tone = "info"
+        status = escape(str(stage.get("status", "")))
+        title = escape(str(stage.get("title", "")))
+        detail = escape(str(stage.get("detail", "")))
+        items.append(
+            f'<div class="kaisan-stage-tile kaisan-stage-{tone}">'
+            f'{render_status_chip(status, tone) if status else ""}'
+            f"<strong>{title}</strong>"
+            f"<small>{detail}</small>"
+            "</div>"
+        )
+
+    st.markdown(
+        f'<div class="kaisan-stage-grid">{"".join(items)}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def render_focus_strip(title: str, detail: str, items: list[dict | str] | None = None, tone: str = "warning"):
+    tone = str(tone or "warning").lower()
+    if tone not in {"info", "success", "warning", "danger", "neutral"}:
+        tone = "warning"
+
+    chips = []
+    for item in items or []:
+        if isinstance(item, dict):
+            label = item.get("label", "")
+            chip_tone = item.get("tone", tone)
+        else:
+            label = str(item)
+            chip_tone = tone
+        if str(label).strip():
+            chips.append(render_status_chip(str(label), str(chip_tone)))
+
+    st.markdown(
+        f"""
+        <section class="kaisan-focus-strip kaisan-focus-{tone}">
+          <div>
+            <span>Foco operacional</span>
+            <strong>{escape(str(title))}</strong>
+            <p>{escape(str(detail))}</p>
+          </div>
+          <div class="kaisan-focus-chips">{"".join(chips)}</div>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_progress_panel(
+    title: str,
+    value: str,
+    detail: str = "",
+    progress: float = 0.0,
+    tone: str = "info",
+    meta: str = "",
+):
+    tone = str(tone or "info").lower()
+    if tone not in {"info", "success", "warning", "danger", "neutral"}:
+        tone = "info"
+    try:
+        progress_value = max(0.0, min(100.0, float(progress)))
+    except Exception:
+        progress_value = 0.0
+
+    meta_html = render_status_chip(meta, tone) if str(meta or "").strip() else ""
+    detail_html = f"<p>{escape(str(detail))}</p>" if detail else ""
+    st.markdown(
+        f"""
+        <section class="kaisan-progress-panel kaisan-progress-{tone}">
+          <div>
+            <span>{escape(str(title))}</span>
+            <strong>{escape(str(value))}</strong>
+            {detail_html}
+            <div class="kaisan-progress-track" aria-hidden="true">
+              <div style="width:{progress_value:.1f}%"></div>
+            </div>
+          </div>
+          {meta_html}
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_sidebar_process(
+    month_label: str,
+    steps: list[dict],
+    stats: list[dict] | None = None,
+    subtitle: str = "Operação estoque e expedição",
+):
+    logo_uri = _logo_data_uri()
+    logo_html = f'<img src="{logo_uri}" alt="Kaisan" />' if logo_uri else '<span>K</span>'
+
+    step_items = []
+    for index, step in enumerate(steps, start=1):
+        tone = str(step.get("tone", "neutral") or "neutral").lower()
+        if tone not in {"info", "success", "warning", "danger", "neutral"}:
+            tone = "neutral"
+        active = " is-active" if step.get("active") else ""
+        title = escape(str(step.get("title", "")))
+        detail = escape(str(step.get("detail", "")))
+        step_items.append(
+            f'<div class="kaisan-process-step{active}">'
+            f'<span class="kaisan-step-number">{index}</span>'
+            f'<span class="kaisan-step-copy"><strong>{title}</strong><small>{detail}</small></span>'
+            f'<span class="kaisan-step-dot kaisan-dot-{tone}"></span>'
+            f'</div>'
+        )
+
+    stat_items = []
+    for stat in stats or []:
+        label = escape(str(stat.get("label", "")))
+        value = escape(str(stat.get("value", "")))
+        if label or value:
+            stat_items.append(f"<div><span>{label}</span><strong>{value}</strong></div>")
+
+    stats_html = f'<div class="kaisan-sidebar-stats">{"".join(stat_items)}</div>' if stat_items else ""
+    html = (
+        '<div class="kaisan-sidebar-brand">'
+        f'<div class="kaisan-sidebar-logo">{logo_html}</div>'
+        '<div>'
+        '<strong>Avaliação &<br>Bonificação</strong>'
+        f'<small>{escape(str(subtitle))}</small>'
+        '</div>'
+        '</div>'
+        '<div class="kaisan-sidebar-month">'
+        '<small>Competência ativa</small>'
+        f'<strong>{escape(str(month_label))}</strong>'
+        '</div>'
+        f'<div class="kaisan-process-list">{"".join(step_items)}</div>'
+        f'{stats_html}'
+    )
+    st.sidebar.markdown(html, unsafe_allow_html=True)
 
 
 def apply_kaisan_admin_theme():
@@ -189,14 +337,14 @@ def apply_kaisan_admin_theme():
           grid-template-columns: auto minmax(0, 1fr) auto;
           align-items: center;
           gap: 1rem;
-          margin: 0.2rem 0 1.25rem;
-          padding-bottom: 1rem;
+          margin: 0 0 1rem;
+          padding: 0.15rem 0 0.9rem;
           border-bottom: 1px solid var(--kaisan-line-strong);
         }
 
         .kaisan-logo-card {
-          width: 76px;
-          height: 76px;
+          width: 58px;
+          height: 58px;
           display: grid;
           place-items: center;
           overflow: hidden;
@@ -231,19 +379,19 @@ def apply_kaisan_admin_theme():
           align-items: center;
           gap: 0.72rem;
           margin: 0.1rem 0 0.38rem;
-          font-size: clamp(1.9rem, 2.5vw, 2.55rem);
+          font-size: clamp(1.55rem, 2.1vw, 2.05rem);
           line-height: 1.05;
         }
 
         .kaisan-page-icon {
           display: inline-grid;
           place-items: center;
-          width: 2.3rem;
-          height: 2.3rem;
+          width: 2rem;
+          height: 2rem;
           border-radius: 8px;
           background: var(--kaisan-blue-soft);
           color: var(--kaisan-blue);
-          font-size: 1.45rem;
+          font-size: 1.18rem;
         }
 
         .kaisan-page-copy p,
@@ -358,6 +506,231 @@ def apply_kaisan_admin_theme():
           background: var(--kaisan-surface-soft);
         }
 
+        .kaisan-status-violet {
+          border-left-color: #66579f;
+          background: linear-gradient(180deg, #ffffff 0%, #f3effb 100%);
+        }
+
+        .kaisan-chip {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 1.65rem;
+          padding: 0.22rem 0.55rem;
+          border-radius: 999px;
+          font-size: 0.74rem;
+          font-weight: 850;
+          line-height: 1.1;
+          white-space: nowrap;
+        }
+
+        .kaisan-chip-info {
+          color: var(--kaisan-blue);
+          background: #e4f0f6;
+        }
+
+        .kaisan-chip-success {
+          color: var(--kaisan-green);
+          background: var(--kaisan-green-soft);
+        }
+
+        .kaisan-chip-warning {
+          color: #8b580c;
+          background: var(--kaisan-amber-soft);
+        }
+
+        .kaisan-chip-danger {
+          color: var(--kaisan-red);
+          background: var(--kaisan-red-soft);
+        }
+
+        .kaisan-chip-neutral {
+          color: var(--kaisan-muted);
+          background: #edf2f6;
+        }
+
+        .kaisan-chip-violet {
+          color: #66579f;
+          background: #eeeaf8;
+        }
+
+        .kaisan-stage-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 0.75rem;
+          margin: 0.9rem 0 1rem;
+        }
+
+        .kaisan-stage-tile {
+          min-height: 104px;
+          padding: 0.88rem;
+          border: 1px solid var(--kaisan-line);
+          border-top: 4px solid var(--kaisan-blue);
+          border-radius: var(--kaisan-radius);
+          background: var(--kaisan-surface);
+          box-shadow: var(--kaisan-shadow-soft);
+        }
+
+        .kaisan-stage-tile strong {
+          display: block;
+          margin-top: 0.48rem;
+          color: var(--kaisan-ink);
+          font-size: 0.98rem;
+          line-height: 1.2;
+        }
+
+        .kaisan-stage-tile small {
+          display: block;
+          margin-top: 0.35rem;
+          line-height: 1.32;
+        }
+
+        .kaisan-stage-success {
+          border-top-color: var(--kaisan-green);
+        }
+
+        .kaisan-stage-warning {
+          border-top-color: var(--kaisan-amber);
+        }
+
+        .kaisan-stage-danger {
+          border-top-color: var(--kaisan-red);
+        }
+
+        .kaisan-stage-neutral {
+          border-top-color: var(--kaisan-line-strong);
+        }
+
+        .kaisan-stage-violet {
+          border-top-color: #66579f;
+        }
+
+        .kaisan-focus-strip {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+          gap: 1rem;
+          margin: 0.95rem 0 1.1rem;
+          padding: 0.9rem 1rem;
+          border: 1px solid var(--kaisan-line);
+          border-left: 5px solid var(--kaisan-amber);
+          border-radius: var(--kaisan-radius);
+          background: var(--kaisan-amber-soft);
+          box-shadow: var(--kaisan-shadow-soft);
+        }
+
+        .kaisan-focus-strip span:first-child,
+        .kaisan-progress-panel span:first-child {
+          display: block;
+          margin-bottom: 0.18rem;
+          color: var(--kaisan-muted);
+          font-size: 0.72rem;
+          font-weight: 850;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .kaisan-focus-strip strong {
+          display: block;
+          color: var(--kaisan-ink);
+          font-size: 1rem;
+        }
+
+        .kaisan-focus-strip p {
+          margin: 0.15rem 0 0;
+          color: var(--kaisan-muted);
+        }
+
+        .kaisan-focus-chips {
+          display: flex;
+          justify-content: flex-end;
+          gap: 0.5rem;
+          flex-wrap: wrap;
+        }
+
+        .kaisan-focus-info {
+          border-left-color: var(--kaisan-blue);
+          background: #eef6fb;
+        }
+
+        .kaisan-focus-success {
+          border-left-color: var(--kaisan-green);
+          background: var(--kaisan-green-soft);
+        }
+
+        .kaisan-focus-danger {
+          border-left-color: var(--kaisan-red);
+          background: var(--kaisan-red-soft);
+        }
+
+        .kaisan-progress-panel {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 1rem;
+          align-items: center;
+          margin: 0.85rem 0 1rem;
+          padding: 0.9rem 1rem;
+          border: 1px solid #cfe8df;
+          border-left: 5px solid var(--kaisan-green);
+          border-radius: var(--kaisan-radius);
+          background: #f3f9f7;
+          box-shadow: var(--kaisan-shadow-soft);
+        }
+
+        .kaisan-progress-panel strong {
+          display: block;
+          color: var(--kaisan-ink);
+          font-size: 1.12rem;
+          line-height: 1.2;
+        }
+
+        .kaisan-progress-panel p {
+          margin: 0.18rem 0 0.55rem;
+          color: var(--kaisan-muted);
+        }
+
+        .kaisan-progress-track {
+          width: 100%;
+          height: 0.55rem;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(15, 37, 64, 0.08);
+        }
+
+        .kaisan-progress-track div {
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, var(--kaisan-green), var(--kaisan-blue));
+        }
+
+        .kaisan-progress-warning {
+          border-left-color: var(--kaisan-amber);
+          background: #fff8ec;
+        }
+
+        .kaisan-progress-warning .kaisan-progress-track div {
+          background: linear-gradient(90deg, var(--kaisan-amber), #d66b56);
+        }
+
+        .kaisan-progress-danger {
+          border-left-color: var(--kaisan-red);
+          background: var(--kaisan-red-soft);
+        }
+
+        .kaisan-progress-danger .kaisan-progress-track div {
+          background: linear-gradient(90deg, var(--kaisan-red), #d66b56);
+        }
+
+        .kaisan-progress-neutral {
+          border-left-color: var(--kaisan-line-strong);
+          border-color: var(--kaisan-line);
+          background: var(--kaisan-surface);
+        }
+
+        .kaisan-progress-neutral .kaisan-progress-track div {
+          background: var(--kaisan-line-strong);
+        }
+
         .kaisan-notice {
           display: flex;
           justify-content: space-between;
@@ -448,6 +821,153 @@ def apply_kaisan_admin_theme():
 
         [data-testid="stSidebar"] hr {
           border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .kaisan-sidebar-brand {
+          display: flex;
+          align-items: center;
+          gap: 0.72rem;
+          margin: 0.2rem 0 1.2rem;
+        }
+
+        .kaisan-sidebar-brand strong {
+          display: block;
+          color: #ffffff !important;
+          font-size: 1.05rem;
+          line-height: 1.08;
+        }
+
+        .kaisan-sidebar-brand small {
+          display: block;
+          margin-top: 0.3rem;
+        }
+
+        .kaisan-sidebar-logo {
+          flex: 0 0 auto;
+          width: 42px;
+          height: 42px;
+          display: grid;
+          place-items: center;
+          overflow: hidden;
+          border-radius: 8px;
+          background: #ffffff;
+        }
+
+        .kaisan-sidebar-logo img {
+          width: 74%;
+          height: auto;
+          object-fit: contain;
+        }
+
+        .kaisan-sidebar-month {
+          display: grid;
+          gap: 0.22rem;
+          margin: 0 0 1rem;
+          padding: 0.82rem;
+          border: 1px solid rgba(255, 255, 255, 0.13);
+          border-radius: var(--kaisan-radius);
+          background: rgba(255, 255, 255, 0.07);
+        }
+
+        .kaisan-sidebar-month strong {
+          color: #ffffff !important;
+          font-size: 1rem;
+        }
+
+        .kaisan-process-list {
+          display: grid;
+          gap: 0.55rem;
+          margin: 1rem 0;
+        }
+
+        .kaisan-process-step {
+          display: grid;
+          grid-template-columns: 1.8rem minmax(0, 1fr) auto;
+          gap: 0.6rem;
+          align-items: center;
+          padding: 0.62rem;
+          border-radius: var(--kaisan-radius);
+          background: rgba(255, 255, 255, 0.05);
+        }
+
+        .kaisan-process-step.is-active {
+          background: rgba(52, 125, 165, 0.31);
+          box-shadow: inset 3px 0 0 #ffffff, inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+        }
+
+        .kaisan-step-number {
+          width: 1.8rem;
+          height: 1.8rem;
+          display: grid;
+          place-items: center;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.12);
+          color: #ffffff !important;
+          font-weight: 850;
+          font-size: 0.78rem;
+        }
+
+        .kaisan-step-copy {
+          min-width: 0;
+        }
+
+        .kaisan-step-copy strong {
+          display: block;
+          color: #ffffff !important;
+          font-size: 0.9rem;
+          line-height: 1.12;
+        }
+
+        .kaisan-step-copy small {
+          display: block;
+          margin-top: 0.18rem;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .kaisan-step-dot {
+          width: 0.62rem;
+          height: 0.62rem;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.38);
+        }
+
+        .kaisan-dot-success {
+          background: var(--kaisan-green);
+        }
+
+        .kaisan-dot-warning {
+          background: var(--kaisan-amber);
+        }
+
+        .kaisan-dot-danger {
+          background: var(--kaisan-red);
+        }
+
+        .kaisan-dot-info {
+          background: #7bc4e8;
+        }
+
+        .kaisan-sidebar-stats {
+          display: grid;
+          gap: 0.55rem;
+          margin-top: 1.2rem;
+          padding-top: 1rem;
+          border-top: 1px solid rgba(255, 255, 255, 0.13);
+        }
+
+        .kaisan-sidebar-stats div {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.8rem;
+          font-size: 0.86rem;
+        }
+
+        .kaisan-sidebar-stats strong {
+          color: #ffffff !important;
+          font-size: 0.9rem;
         }
 
         [data-testid="stSidebar"] [role="radiogroup"] {
@@ -729,12 +1249,12 @@ def apply_kaisan_admin_theme():
           }
 
           .kaisan-logo-card {
-            width: 76px;
-            height: 76px;
+            width: 58px;
+            height: 58px;
           }
 
           .kaisan-page-copy h1 {
-            font-size: 2.05rem;
+            font-size: 1.8rem;
           }
 
           .kaisan-page-meta {
@@ -748,6 +1268,11 @@ def apply_kaisan_admin_theme():
 
           div[data-testid="stVerticalBlock"] > div:has(> div[data-testid="stMetric"]) {
             min-height: auto;
+          }
+
+          .kaisan-focus-strip,
+          .kaisan-progress-panel {
+            grid-template-columns: 1fr;
           }
         }
         </style>

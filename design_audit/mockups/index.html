@@ -1,0 +1,1222 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mockups - Avaliação & Bonificação</title>
+  <style>
+    :root {
+      --ink: #12263a;
+      --muted: #5c6f7f;
+      --line: #d8e2ea;
+      --surface: #ffffff;
+      --surface-soft: #f6f9fb;
+      --bg: #edf3f7;
+      --navy: #10283f;
+      --blue: #347da5;
+      --teal: #177864;
+      --amber: #cb8a19;
+      --red: #b04557;
+      --coral: #d66b56;
+      --violet: #6b5ca5;
+      --shadow: 0 12px 28px rgba(16, 38, 60, 0.09);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--bg);
+      font-family: "Segoe UI", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 264px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      padding: 28px 26px;
+      color: #f6fbff;
+      background: #10283f;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+
+    .brand-mark {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: var(--radius);
+      background: #ffffff;
+    }
+
+    .brand-mark img {
+      width: 30px;
+    }
+
+    .brand strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.12;
+    }
+
+    .brand small,
+    .sidebar small {
+      color: rgba(246, 251, 255, 0.68);
+    }
+
+    .month-chip {
+      display: grid;
+      gap: 4px;
+      padding: 12px;
+      margin: 20px 0;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: var(--radius);
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .process {
+      display: grid;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .process-item {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px;
+      border-radius: var(--radius);
+      color: rgba(246, 251, 255, 0.86);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .process-item.active {
+      background: rgba(52, 125, 165, 0.34);
+      box-shadow: inset 3px 0 0 #ffffff;
+    }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.14);
+      font-weight: 800;
+      font-size: 12px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--teal);
+    }
+
+    .dot.warn {
+      background: var(--amber);
+    }
+
+    .dot.danger {
+      background: var(--red);
+    }
+
+    .sidebar-summary {
+      margin-top: 28px;
+      padding-top: 18px;
+      border-top: 1px solid rgba(255, 255, 255, 0.14);
+      display: grid;
+      gap: 10px;
+    }
+
+    .sidebar-summary div {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+    }
+
+    .main {
+      padding: 28px 34px 72px;
+    }
+
+    .mockup {
+      max-width: 1220px;
+      margin: 0 auto 48px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.64);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .screen-bar {
+      display: flex;
+      justify-content: space-between;
+      gap: 18px;
+      align-items: center;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .screen-bar h1 {
+      margin: 0;
+      font-size: 26px;
+      line-height: 1.12;
+    }
+
+    .screen-bar p {
+      margin: 4px 0 0;
+      color: var(--muted);
+    }
+
+    .screen-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .button {
+      min-height: 38px;
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--ink);
+      font-weight: 750;
+      font-size: 14px;
+    }
+
+    .button.primary {
+      border-color: var(--blue);
+      background: var(--blue);
+      color: #ffffff;
+    }
+
+    .button.warning {
+      border-color: rgba(203, 138, 25, 0.35);
+      background: #fff6e8;
+      color: #7b4b08;
+    }
+
+    .content {
+      padding: 22px;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .metric-card {
+      min-height: 112px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--blue);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .metric-card.success {
+      border-left-color: var(--teal);
+    }
+
+    .metric-card.warning {
+      border-left-color: var(--amber);
+    }
+
+    .metric-card.danger {
+      border-left-color: var(--red);
+    }
+
+    .metric-card.violet {
+      border-left-color: var(--violet);
+    }
+
+    .metric-card span,
+    .section-kicker {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .metric-card strong {
+      display: block;
+      margin-top: 8px;
+      font-size: 25px;
+      line-height: 1.1;
+    }
+
+    .metric-card small {
+      display: block;
+      margin-top: 8px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: minmax(0, 1.7fr) minmax(300px, 0.8fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: start;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-soft);
+    }
+
+    .panel-head h2 {
+      margin: 3px 0 0;
+      font-size: 18px;
+    }
+
+    .panel-head p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .panel-body {
+      padding: 14px 16px;
+    }
+
+    .checklist {
+      display: grid;
+      gap: 10px;
+    }
+
+    .check-row {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+    }
+
+    .status-pill,
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 26px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .status-pill.ok,
+    .chip.ok {
+      background: #e5f4ef;
+      color: var(--teal);
+    }
+
+    .status-pill.warn,
+    .chip.warn {
+      background: #fff2dc;
+      color: #8b580c;
+    }
+
+    .status-pill.bad,
+    .chip.bad {
+      background: #fae9ec;
+      color: var(--red);
+    }
+
+    .status-pill.info,
+    .chip.info {
+      background: #e4f0f6;
+      color: var(--blue);
+    }
+
+    .status-pill.violet,
+    .chip.violet {
+      background: #eeeaf8;
+      color: var(--violet);
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr auto;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .scanbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px;
+      margin-bottom: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #f7fbfd;
+    }
+
+    .field {
+      min-height: 42px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+      color: var(--ink);
+      font-size: 14px;
+    }
+
+    .filter-cluster {
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .filter-popover {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+      box-shadow: 0 10px 22px rgba(16, 38, 60, 0.08);
+    }
+
+    .mini-progress-card {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 12px;
+      margin-bottom: 14px;
+      border: 1px solid #cfe8df;
+      border-left: 5px solid var(--teal);
+      border-radius: var(--radius);
+      background: #f3f9f7;
+    }
+
+    .mini-progress-card strong {
+      display: block;
+      font-size: 18px;
+    }
+
+    .table-wrap {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      padding: 11px 10px;
+      background: #f3f7fa;
+      color: var(--muted);
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+    }
+
+    td {
+      padding: 12px 10px;
+      border-bottom: 1px solid #edf2f5;
+      vertical-align: middle;
+    }
+
+    tr.priority {
+      background: #fffaf1;
+    }
+
+    tr.selected {
+      background: #f0f8fb;
+    }
+
+    .row-title {
+      font-weight: 800;
+    }
+
+    .row-sub {
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .progress-line {
+      width: 100%;
+      height: 8px;
+      border-radius: 999px;
+      background: #e6edf2;
+      overflow: hidden;
+    }
+
+    .progress-line div {
+      height: 100%;
+      background: linear-gradient(90deg, var(--teal), var(--blue));
+    }
+
+    .progress-line.warn div {
+      background: linear-gradient(90deg, var(--amber), var(--coral));
+    }
+
+    .stage-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin: 0 0 18px;
+    }
+
+    .stage-tile {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+    }
+
+    .stage-tile strong {
+      display: block;
+      margin-top: 5px;
+      font-size: 15px;
+    }
+
+    .focus-strip {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #f0d8a9;
+      border-radius: var(--radius);
+      background: #fff8ec;
+    }
+
+    .focus-strip strong {
+      display: block;
+    }
+
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .validation-card {
+      display: grid;
+      gap: 10px;
+    }
+
+    .validation-card .money {
+      padding: 14px;
+      border-radius: var(--radius);
+      background: #f3f9f7;
+      border: 1px solid #cfe8df;
+    }
+
+    .money strong {
+      display: block;
+      margin-top: 4px;
+      color: var(--teal);
+      font-size: 26px;
+    }
+
+    .employee-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
+      gap: 16px;
+    }
+
+    .profile-block {
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr);
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .avatar {
+      width: 56px;
+      height: 56px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #e4f0f6;
+      color: var(--blue);
+      font-weight: 900;
+      font-size: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .stepper {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .step {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+    }
+
+    .step strong {
+      display: block;
+      margin-top: 3px;
+    }
+
+    .criteria-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .criterion {
+      padding: 13px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+    }
+
+    .criterion-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .slider-fake {
+      height: 8px;
+      border-radius: 999px;
+      background: #e6edf2;
+      overflow: hidden;
+      margin: 12px 0 8px;
+    }
+
+    .slider-fake div {
+      height: 100%;
+      background: var(--blue);
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .toast-sample {
+      padding: 11px 12px;
+      border: 1px solid #cfe8df;
+      border-radius: var(--radius);
+      background: #eef8f4;
+      color: var(--teal);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .skeleton-card {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+    }
+
+    .skeleton-line {
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #e8eef3, #f6f9fb, #e8eef3);
+    }
+
+    @media (max-width: 980px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+      }
+
+      .sidebar {
+        position: static;
+        height: auto;
+      }
+
+      .summary-grid,
+      .two-col,
+      .employee-layout,
+      .criteria-grid,
+      .stage-grid,
+      .focus-strip,
+      .filter-popover {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar,
+      .actions-grid,
+      .stepper {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark"><img src="assets/logo.png" alt="Kaisan" /></div>
+        <div>
+          <strong>Avaliação &<br />Bonificação</strong>
+          <small>Operação estoque e expedição</small>
+        </div>
+      </div>
+
+      <div class="month-chip">
+        <small>Competência ativa</small>
+        <strong>05/2026</strong>
+        <small>Fechamento com pendências</small>
+      </div>
+
+      <nav class="process" aria-label="Fluxo mensal">
+        <div class="process-item">
+          <span class="step-num">1</span>
+          <strong>Funcionários</strong>
+          <span class="dot"></span>
+        </div>
+        <div class="process-item active">
+          <span class="step-num">2</span>
+          <strong>Avaliações</strong>
+          <span class="dot warn"></span>
+        </div>
+        <div class="process-item">
+          <span class="step-num">3</span>
+          <strong>Monitoria</strong>
+          <span class="dot warn"></span>
+        </div>
+        <div class="process-item">
+          <span class="step-num">4</span>
+          <strong>Relatório</strong>
+          <span class="dot danger"></span>
+        </div>
+      </nav>
+
+      <div class="sidebar-summary">
+        <div><span>Cobertura semanal</span><strong>76%</strong></div>
+        <div><span>Pendências críticas</span><strong>8</strong></div>
+        <div><span>Total previsto</span><strong>R$ 7.840</strong></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="mockup" id="fechamento">
+        <div class="screen-bar">
+          <div>
+            <h1>Fechamento mensal</h1>
+            <p>Cockpit de decisão para saber se o mês pode ser fechado.</p>
+          </div>
+          <div class="screen-actions">
+            <button class="button">Atualizar dados</button>
+            <button class="button primary">Gerar PDF executivo</button>
+          </div>
+        </div>
+        <div class="content">
+          <div class="summary-grid">
+            <div class="metric-card warning">
+              <span>Cobertura</span>
+              <strong>76%</strong>
+              <small>55 de 72 avaliações esperadas</small>
+            </div>
+            <div class="metric-card danger">
+              <span>Pendências</span>
+              <strong>17</strong>
+              <small>8 bloqueiam o fechamento</small>
+            </div>
+            <div class="metric-card success">
+              <span>Total geral</span>
+              <strong>R$ 7.840</strong>
+              <small>Inclui monitoria e tempo de casa</small>
+            </div>
+            <div class="metric-card violet">
+              <span>Setores</span>
+              <strong>4</strong>
+              <small>2 setores com alerta</small>
+            </div>
+            <div class="metric-card">
+              <span>Monitores</span>
+              <strong>3/5</strong>
+              <small>2 monitorias faltantes</small>
+            </div>
+          </div>
+
+          <div class="stage-grid" aria-label="Etapas do fechamento">
+            <div class="stage-tile">
+              <span class="chip ok">Pronto</span>
+              <strong>Base conferida</strong>
+              <div class="note">Padrão stage tile do Estoque/ByBox.</div>
+            </div>
+            <div class="stage-tile">
+              <span class="chip warn">Atenção</span>
+              <strong>Semanais</strong>
+              <div class="note">17 avaliações ainda precisam de revisão.</div>
+            </div>
+            <div class="stage-tile">
+              <span class="chip warn">Atenção</span>
+              <strong>Monitoria</strong>
+              <div class="note">2 monitores sem lançamento mensal.</div>
+            </div>
+            <div class="stage-tile">
+              <span class="chip bad">Bloqueado</span>
+              <strong>Exportação</strong>
+              <div class="note">PDF final desabilitado até regularizar.</div>
+            </div>
+            <div class="stage-tile">
+              <span class="chip info">Pendente</span>
+              <strong>Assinatura</strong>
+              <div class="note">Responsável definido no painel final.</div>
+            </div>
+          </div>
+
+          <div class="focus-strip">
+            <div>
+              <span class="section-kicker">Foco operacional</span>
+              <strong>Tratar 8 bloqueios antes de gerar o relatório.</strong>
+            </div>
+            <div><span class="chip bad">4 sem justificativa</span></div>
+            <div><span class="chip warn">2 monitorias faltando</span></div>
+            <button class="button warning">Abrir exceções</button>
+          </div>
+
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Prioridades</span>
+                  <h2>Checklist de fechamento</h2>
+                  <p>Pendências visíveis no topo, sem depender de expander.</p>
+                </div>
+                <span class="status-pill bad">Bloqueado</span>
+              </div>
+              <div class="panel-body checklist">
+                <div class="check-row">
+                  <span class="status-pill bad">Crítico</span>
+                  <div>
+                    <strong>Avaliações semanais faltantes</strong>
+                    <div class="note">Arthur, Kaique e outros 6 sem avaliação em semanas elegíveis.</div>
+                  </div>
+                  <button class="button warning">Regularizar</button>
+                </div>
+                <div class="check-row">
+                  <span class="status-pill warn">Atenção</span>
+                  <div>
+                    <strong>Monitoria mensal incompleta</strong>
+                    <div class="note">2 monitores elegíveis ainda sem registro da competência.</div>
+                  </div>
+                  <button class="button">Abrir monitoria</button>
+                </div>
+                <div class="check-row">
+                  <span class="status-pill ok">Pronto</span>
+                  <div>
+                    <strong>Funcionários ativos conferidos</strong>
+                    <div class="note">Nenhum cadastro sem função, setor ou data obrigatória.</div>
+                  </div>
+                  <button class="button">Ver lista</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Exportações</span>
+                  <h2>Saídas do mês</h2>
+                  <p>Ações finais separadas da conferência.</p>
+                </div>
+              </div>
+              <div class="panel-body validation-card">
+                <button class="button primary">PDF executivo + anexo RH</button>
+                <button class="button">PDF por setor</button>
+                <button class="button">CSV completo filtrado</button>
+                <div class="money">
+                  <span class="section-kicker">Assinatura</span>
+                  <strong>Yohann Risso</strong>
+                  <div class="note">Campo de assinatura e observação aparecem aqui, junto da exportação.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mockup" id="lote">
+        <div class="screen-bar">
+          <div>
+            <h1>Avaliação semanal em massa</h1>
+            <p>Superfície de edição densa, com validação sempre visível.</p>
+          </div>
+          <div class="screen-actions">
+            <button class="button">Recarregar banco</button>
+            <button class="button primary">Salvar selecionados</button>
+          </div>
+        </div>
+        <div class="content">
+          <div class="filter-cluster">
+            <div class="toolbar">
+              <div class="field">Semana: 18/05/2026 → 22/05/2026</div>
+              <div class="field">Setor: Todos</div>
+              <div class="field">Função: Todas</div>
+              <button class="button">Filtros ativos · 3</button>
+            </div>
+            <div class="filter-popover">
+              <div class="field">Origem: Banco + novos</div>
+              <div class="field">Status: Pendentes primeiro</div>
+              <div class="field">Elegibilidade: Todos</div>
+              <button class="button warning">Só bloqueios</button>
+            </div>
+          </div>
+
+          <div class="mini-progress-card">
+            <div>
+              <span class="section-kicker">Padrão Picking: progresso + sync</span>
+              <strong>12 de 17 selecionados prontos para salvar</strong>
+              <div class="progress-line"><div style="width:71%"></div></div>
+            </div>
+            <span class="chip ok">Salvo há 2 min</span>
+          </div>
+
+          <div class="two-col">
+            <div>
+              <div class="actions-grid">
+                <button class="button">Marcar todos</button>
+                <button class="button">Desmarcar</button>
+                <button class="button">Aplicar 100%</button>
+                <button class="button">Aplicar 80%</button>
+                <button class="button">Avaliador</button>
+                <button class="button">Última base</button>
+                <button class="button">Justificar</button>
+              </div>
+
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Funcionário</th>
+                      <th>Origem</th>
+                      <th>Score</th>
+                      <th>Erros</th>
+                      <th>Prod/Efic</th>
+                      <th>Justificativas</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="priority selected">
+                      <td><span class="chip bad">Pendente</span></td>
+                      <td><div class="row-title">Arthur Gonçalves</div><div class="row-sub">Estoque · Auxiliar</div></td>
+                      <td>Base anterior</td>
+                      <td><strong>62%</strong><div class="progress-line warn"><div style="width:62%"></div></div></td>
+                      <td>55%</td>
+                      <td>70%</td>
+                      <td><span class="chip warn">3/5</span></td>
+                    </tr>
+                    <tr>
+                      <td><span class="chip ok">Pronto</span></td>
+                      <td><div class="row-title">Kaique Teixeira</div><div class="row-sub">Trocas · Estoque</div></td>
+                      <td>Banco</td>
+                      <td><strong>94%</strong><div class="progress-line"><div style="width:94%"></div></div></td>
+                      <td>100%</td>
+                      <td>90%</td>
+                      <td><span class="chip ok">5/5</span></td>
+                    </tr>
+                    <tr class="selected">
+                      <td><span class="chip info">Novo</span></td>
+                      <td><div class="row-title">Lucas Paiva</div><div class="row-sub">Expedição · Auxiliar</div></td>
+                      <td>Novo</td>
+                      <td><strong>80%</strong><div class="progress-line"><div style="width:80%"></div></div></td>
+                      <td>80%</td>
+                      <td>75%</td>
+                      <td><span class="chip bad">0/5</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <aside class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Validação</span>
+                  <h2>Antes de salvar</h2>
+                  <p>Sem trocar de aba para descobrir problemas.</p>
+                </div>
+              </div>
+              <div class="panel-body validation-card">
+                <div class="check-row">
+                  <span class="status-pill info">Selecionados</span>
+                  <strong>12 funcionários</strong>
+                </div>
+                <div class="check-row">
+                  <span class="status-pill bad">Pendências</span>
+                  <strong>5 justificativas</strong>
+                </div>
+                <div class="check-row">
+                  <span class="status-pill warn">Score médio</span>
+                  <strong>75,9%</strong>
+                </div>
+                <div class="money">
+                  <span class="section-kicker">Prévia semanal</span>
+                  <strong>R$ 1.482,50</strong>
+                  <div class="note">Estimativa recalculada conforme seleção e edição.</div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="mockup" id="funcionarios">
+        <div class="screen-bar">
+          <div>
+            <h1>Funcionários</h1>
+            <p>Gestão em lista com detalhe editável, sem selects longos repetidos.</p>
+          </div>
+          <div class="screen-actions">
+            <button class="button">Importar CSV</button>
+            <button class="button primary">Novo funcionário</button>
+          </div>
+        </div>
+        <div class="content employee-layout">
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="section-kicker">Gestão</span>
+                <h2>Lista ativa</h2>
+                <p>Filtros em toolbar e status por linha.</p>
+              </div>
+              <span class="status-pill ok">17 ativos</span>
+            </div>
+            <div class="panel-body">
+              <div class="scanbar">
+                <div class="field">Buscar funcionário, matrícula, setor ou função</div>
+                <button class="button primary">Consultar</button>
+              </div>
+              <div class="toolbar" style="grid-template-columns: 1.2fr 1fr 1fr auto;">
+                <div class="field">Cargo: Todos</div>
+                <div class="field">Setor: Todos</div>
+                <div class="field">Status: Ativos</div>
+                <button class="button">Filtros</button>
+              </div>
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Funcionário</th>
+                      <th>Setor</th>
+                      <th>Função</th>
+                      <th>Status</th>
+                      <th>Elegibilidade</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr class="selected">
+                      <td><div class="row-title">Deygles Matos</div><div class="row-sub">Admitido em 02/07/2025</div></td>
+                      <td>Expedição</td>
+                      <td>Auxiliar</td>
+                      <td><span class="chip ok">Ativo</span></td>
+                      <td><span class="chip info">Monitor</span></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title">Yohann Risso</div><div class="row-sub">Coordenação</div></td>
+                      <td>Coordenação</td>
+                      <td>Coordenador</td>
+                      <td><span class="chip ok">Ativo</span></td>
+                      <td><span class="chip violet">Coord./Sup.</span></td>
+                    </tr>
+                    <tr>
+                      <td><div class="row-title">Filipe Lopes</div><div class="row-sub">Histórico preservado</div></td>
+                      <td>Expedição</td>
+                      <td>Auxiliar</td>
+                      <td><span class="chip bad">Desativado</span></td>
+                      <td><span class="chip warn">Fora do fluxo</span></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <div>
+                <span class="section-kicker">Detalhe</span>
+                <h2>Editar funcionário</h2>
+                <p>Ações de ativar/desativar ficam no mesmo contexto.</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="profile-block">
+                <div class="avatar">DM</div>
+                <div>
+                  <h2 style="margin:0">Deygles Matos</h2>
+                  <div class="note">Expedição · Auxiliar de Expedição</div>
+                </div>
+              </div>
+              <div class="form-grid">
+                <div class="field">Setor: Expedição</div>
+                <div class="field">Função: Auxiliar</div>
+                <div class="field">Contratação: 02/07/2025</div>
+                <div class="field">Monitor desde: 01/02/2026</div>
+              </div>
+              <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+                <span class="chip ok">Ativo</span>
+                <span class="chip info">Monitor elegível</span>
+                <span class="chip ok">Cadastro completo</span>
+              </div>
+              <div style="display:flex; gap:10px; margin-top:16px;">
+                <button class="button primary">Salvar alterações</button>
+                <button class="button warning">Desativar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mockup" id="individual">
+        <div class="screen-bar">
+          <div>
+            <h1>Avaliação individual e monitoria</h1>
+            <p>Mesmo padrão de stepper, critérios em cards e prévia financeira contextual.</p>
+          </div>
+          <div class="screen-actions">
+            <button class="button">Copiar última</button>
+            <button class="button primary">Revisar e salvar</button>
+          </div>
+        </div>
+        <div class="content">
+          <div class="stepper">
+            <div class="step"><span class="chip ok">1</span><strong>Entrada</strong><div class="note">Notas e volume</div></div>
+            <div class="step"><span class="chip warn">2</span><strong>Erros</strong><div class="note">2 ocorrências</div></div>
+            <div class="step"><span class="chip bad">3</span><strong>Justificativas</strong><div class="note">3 faltando</div></div>
+            <div class="step"><span class="chip info">4</span><strong>Revisão</strong><div class="note">Prévia final</div></div>
+          </div>
+
+          <div class="two-col">
+            <div class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Critérios</span>
+                  <h2>Arthur Gonçalves · 18/05 a 22/05</h2>
+                  <p>Cards mostram valor, faixa e evidência no mesmo bloco.</p>
+                </div>
+                <span class="status-pill warn">Revisão necessária</span>
+              </div>
+              <div class="panel-body criteria-grid">
+                <div class="criterion">
+                  <div class="criterion-top"><strong>Assiduidade</strong><span class="chip ok">100%</span></div>
+                  <div class="slider-fake"><div style="width:100%"></div></div>
+                  <div class="note">Faixa paga 100% · R$ 37,50</div>
+                </div>
+                <div class="criterion">
+                  <div class="criterion-top"><strong>Qualidade</strong><span class="chip warn">80%</span></div>
+                  <div class="slider-fake"><div style="width:80%; background: var(--amber);"></div></div>
+                  <div class="note">Faixa paga 50% · exige justificativa objetiva.</div>
+                </div>
+                <div class="criterion">
+                  <div class="criterion-top"><strong>Taxa de erros</strong><span class="chip bad">55%</span></div>
+                  <div class="slider-fake"><div style="width:55%; background: var(--red);"></div></div>
+                  <div class="note">2 erros médios no log · sugestão automática aplicada.</div>
+                </div>
+                <div class="criterion">
+                  <div class="criterion-top"><strong>Produtividade / Eficiência</strong><span class="chip info">85%</span></div>
+                  <div class="slider-fake"><div style="width:85%"></div></div>
+                  <div class="note">2733 itens · faixa paga 75%.</div>
+                </div>
+              </div>
+            </div>
+
+            <aside class="panel">
+              <div class="panel-head">
+                <div>
+                  <span class="section-kicker">Prévia</span>
+                  <h2>Pagamento estimado</h2>
+                  <p>Visível durante todo o preenchimento.</p>
+                </div>
+              </div>
+              <div class="panel-body validation-card">
+                <div class="money">
+                  <span class="section-kicker">Total semana</span>
+                  <strong>R$ 94,75</strong>
+                </div>
+                <div class="check-row">
+                  <span class="status-pill warn">Justificativas</span>
+                  <strong>2/5 preenchidas</strong>
+                </div>
+                <div class="check-row">
+                  <span class="status-pill bad">Bloqueio</span>
+                  <strong>Taxa de erros sem evidência</strong>
+                </div>
+                <button class="button primary">Ir para justificativas</button>
+                <div class="toast-sample">Toast RMA: alterações salvas com auditoria.</div>
+                <div class="skeleton-card" aria-label="Estado de carregamento">
+                  <span class="section-kicker">Skeleton para relatório pesado</span>
+                  <div class="skeleton-line" style="width:92%"></div>
+                  <div class="skeleton-line" style="width:68%"></div>
+                  <div class="skeleton-line" style="width:84%"></div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

@@ -6,9 +6,12 @@ from constants import WEEKLY_CRITERIA, SEVERITIES, DEFAULT_ERROR_TYPES
 from theme import (
     mark_operation_status,
     render_divider,
+    render_focus_strip,
     render_operation_status,
     render_page_header,
+    render_progress_panel,
     render_section_header,
+    render_stage_grid,
     render_status_cards,
     render_status_notice,
 )
@@ -1155,6 +1158,60 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
         "info",
         f"Leitura do banco em {st.session_state.get('mass_eval_loaded_at', '-')}",
     )
+
+    current_mass_df = normalize_mass_eval_df(st.session_state["mass_eval_df"].copy())
+    selected_count = int(current_mass_df["Selecionar"].fillna(False).astype(bool).sum())
+    invalid_df = build_mass_validation_df(current_mass_df)
+    invalid_count = int(len(invalid_df))
+    avg_score = current_mass_df["Score"].mean() if not current_mass_df.empty else 0.0
+    selected_total = mass_total_preview(current_mass_df, competencia)
+    ready_count = max(0, selected_count - invalid_count)
+    ready_progress = round((ready_count / selected_count) * 100, 1) if selected_count else 0.0
+
+    render_progress_panel(
+        "Progresso do lote",
+        f"{ready_count}/{selected_count} selecionados prontos" if selected_count else "Nenhuma linha selecionada",
+        "Marque as linhas que serão salvas; a validação aparece aqui antes do salvamento.",
+        progress=ready_progress,
+        tone="success" if selected_count and invalid_count == 0 else ("warning" if selected_count else "neutral"),
+        meta=f"{ready_progress:.1f}% pronto" if selected_count else "Selecione linhas",
+    )
+    render_stage_grid([
+        {
+            "status": "Ativo",
+            "title": "Filtros",
+            "detail": f"{len(filtered_emp)} funcionários no recorte atual.",
+            "tone": "info",
+        },
+        {
+            "status": "Selecionados" if selected_count else "Pendente",
+            "title": "Seleção",
+            "detail": f"{selected_count} linhas marcadas para operação.",
+            "tone": "success" if selected_count else "neutral",
+        },
+        {
+            "status": "Pronto" if invalid_count == 0 else "Atenção",
+            "title": "Validação",
+            "detail": f"{invalid_count} pendências nos selecionados.",
+            "tone": "success" if invalid_count == 0 else "warning",
+        },
+        {
+            "status": "Prévia",
+            "title": "Pagamento",
+            "detail": f"{brl(selected_total)} estimado para selecionados.",
+            "tone": "success" if selected_total else "neutral",
+        },
+    ])
+    if invalid_count:
+        render_focus_strip(
+            "Corrigir pendências antes de salvar o lote.",
+            "As linhas selecionadas precisam de percentuais válidos, avaliador e justificativas obrigatórias.",
+            [
+                {"label": f"{invalid_count} pendências", "tone": "danger"},
+                {"label": f"Score médio {format_pct(avg_score)}", "tone": "warning"},
+            ],
+            "danger",
+        )
 
     edit_tab, detail_tab = st.tabs(["Edição do lote", "Detalhes & KPIs"])
 
