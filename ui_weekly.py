@@ -1047,7 +1047,8 @@ def render_live_preview_sidebar(competencia, defaults):
         st.metric("Total estimado", brl(total))
 
 
-def render_week_priority_ranking(emp: pd.DataFrame, ws_iso: str):
+@st.cache_data(ttl=60, show_spinner=False)
+def build_week_priority_ranking_df(emp: pd.DataFrame, ws_iso: str, data_marker: str = "") -> pd.DataFrame:
     rows = []
     payloads = build_default_payloads(emp["id"].tolist(), ws_iso)
     for _, r in emp.iterrows():
@@ -1066,7 +1067,20 @@ def render_week_priority_ranking(emp: pd.DataFrame, ws_iso: str):
             "Prod/Efic": payload["produtividade"],
         })
 
-    df = pd.DataFrame(rows).sort_values(["Prioridade", "Score", "Taxa de Erros", "Funcionário"], ascending=[True, True, True, True]).reset_index(drop=True)
+    if not rows:
+        return pd.DataFrame()
+
+    return pd.DataFrame(rows).sort_values(
+        ["Prioridade", "Score", "Taxa de Erros", "Funcionário"],
+        ascending=[True, True, True, True],
+    ).reset_index(drop=True)
+
+
+def render_week_priority_ranking(emp: pd.DataFrame, ws_iso: str, data_marker: str = ""):
+    df = build_week_priority_ranking_df(emp, ws_iso, data_marker)
+    if df.empty:
+        return
+
     df_display = df.copy()
     for col in ["Score", "Taxa de Erros", "Prod/Efic"]:
         df_display[col] = df_display[col].map(lambda v: pct_br(v, 1))
@@ -1225,9 +1239,20 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
             "danger",
         )
 
-    edit_tab, detail_tab = st.tabs(["Edição do lote", "Detalhes & KPIs"])
+    mass_views = ["Edição do lote", "Detalhes & KPIs"]
+    if hasattr(st, "segmented_control"):
+        mass_view = st.segmented_control(
+            "Visão do lote",
+            mass_views,
+            default="Edição do lote",
+            selection_mode="single",
+            key="mass_weekly_view",
+        )
+    else:
+        mass_view = st.radio("Visão do lote", mass_views, horizontal=True, key="mass_weekly_view")
+    mass_view = mass_view or "Edição do lote"
 
-    with edit_tab:
+    if mass_view == "Edição do lote":
         render_divider()
         render_section_header(
             "Ações rápidas",
@@ -1423,7 +1448,7 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
 
             queue_mass_operation("save_batch", ctx_key)
 
-    with detail_tab:
+    if mass_view == "Detalhes & KPIs":
         detail_df = st.session_state["mass_eval_df"].copy()
         selected_detail = detail_df[detail_df["Selecionar"].fillna(False).astype(bool)].copy()
         invalid_df = build_mass_validation_df(detail_df)
@@ -1637,19 +1662,30 @@ def page_weekly():
         st.info("Comentários e justificativas foram carregados da última avaliação deste funcionário como base.")
 
     render_rules_block()
-    render_week_priority_ranking(emp, ws_iso)
+    render_week_priority_ranking(emp, ws_iso, data_marker)
 
     render_live_preview_sidebar(competencia, defaults)
     sync_weekly_entry_inputs(items_default, defaults["taxa_erros"])
 
-    tabs = st.tabs([
+    weekly_steps = [
         "1) Entrada",
         "2) Log de Erros",
         "3) Justificativas",
         "4) Prévia & Salvar",
-    ])
+    ]
+    if hasattr(st, "segmented_control"):
+        weekly_step = st.segmented_control(
+            "Etapa",
+            weekly_steps,
+            default="1) Entrada",
+            selection_mode="single",
+            key="weekly_step",
+        )
+    else:
+        weekly_step = st.radio("Etapa", weekly_steps, horizontal=True, key="weekly_step")
+    weekly_step = weekly_step or "1) Entrada"
 
-    with tabs[0]:
+    if weekly_step == "1) Entrada":
         render_section_header(
             "Entrada",
             "Defina resultados, use sugestões e copie a base anterior quando fizer sentido.",
@@ -1767,7 +1803,7 @@ def page_weekly():
         st.session_state["wk_taxa_erros_pct"] = float(taxa_erros_pct)
         st.session_state["wk_pcts"] = dict(pcts)
 
-    with tabs[1]:
+    if weekly_step == "2) Log de Erros":
         render_section_header(
             "Log de erros",
             "Registre ocorrências da semana; elas alimentam a sugestão automática.",
@@ -1864,7 +1900,7 @@ def page_weekly():
                 st.success("Sugestão aplicada.")
                 st.rerun()
 
-    with tabs[2]:
+    if weekly_step == "3) Justificativas":
         render_section_header(
             "Justificativas",
             "Use modelos por critério, copie a última avaliação ou gere justificativas automaticamente.",
@@ -1961,7 +1997,7 @@ def page_weekly():
         filled = sum(1 for v in st.session_state["wk_justs"].values() if str(v).strip())
         st.info(f"Justificativas preenchidas: **{filled}/5**")
 
-    with tabs[3]:
+    if weekly_step == "4) Prévia & Salvar":
         render_section_header(
             "Prévia & Salvar",
             "Confira o pagamento estimado, pendências de justificativa e confirme o registro.",

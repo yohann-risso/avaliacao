@@ -2477,12 +2477,23 @@ def render_report_page():
             return
         month_br = month_label_to_br(month)
 
-    tabs = st.tabs(["Resumo", "Setor", "Funcionário"])
+    report_views = ["Resumo", "Setor", "Funcionário"]
+    if hasattr(st, "segmented_control"):
+        report_view = st.segmented_control(
+            "Visão",
+            report_views,
+            default="Resumo",
+            selection_mode="single",
+            key="report_view",
+        )
+    else:
+        report_view = st.radio("Visão", report_views, horizontal=True, key="report_view")
+    report_view = report_view or "Resumo"
 
     # =========================
     # TAB 1: Resumo
     # =========================
-    with tabs[0]:
+    if report_view == "Resumo":
         render_divider()
         try:
             df, weeks_iso = build_month_df(month, data_marker)
@@ -2597,41 +2608,60 @@ def render_report_page():
         ]
         df_pdf = df_view.drop(columns=drop_cols)
 
-        # Anexo RH: puxa avaliações semanais (%) para os funcionários filtrados (por ID)
-        df_appendix = df_view[df_view["_is_leadership"] == 0].copy()
-        emp_ids = df_appendix["_employee_id"].tolist()
-        weekly_join_df = pd.DataFrame()
-        if include_weekly_appendix and weeks_iso and emp_ids:
-            weekly_join_df = fetch_weekly_evaluations_for_weeks(weeks_iso, emp_ids)
-            if not weekly_join_df.empty:
-                name_map = dict(zip(df_appendix["_employee_id"], df_appendix["Funcionário"]))
-                hire_map = dict(zip(df_appendix["_employee_id"], df_appendix["_hire_date"]))
-                weekly_join_df = weekly_join_df[
-                    weekly_join_df.apply(
-                        lambda row: is_week_after_hire(hire_map.get(int(row["employee_id"]), ""), str(row["week_start"])),
-                        axis=1,
-                    )
-                ]
-                weekly_join_df["name"] = weekly_join_df["employee_id"].map(name_map)
-                weekly_join_df = weekly_join_df.sort_values(["week_start", "name"])
-
-        pdf_bytes = build_report_pdf_bytes_executivo(
-            df_pdf=df_pdf,
-            month=month,
-            coordinator_name=coordinator_name,
-            report_observation=report_observation,
-            weeks_iso=weeks_iso,
-            weekly_join_df=weekly_join_df,
-            include_weekly_appendix=include_weekly_appendix,
-            logo_path="assets/logo.png",
+        exec_pdf_meta = (
+            month,
+            coordinator_name,
+            report_observation,
+            bool(include_weekly_appendix),
+            tuple(df_view["_employee_id"].fillna(0).astype(int).tolist()),
+            data_marker,
         )
+        if st.button("Gerar PDF (paisagem) — executivo + anexo RH", type="primary", key="generate_exec_pdf"):
+            with st.spinner("Gerando PDF executivo..."):
+                df_appendix = df_view[df_view["_is_leadership"] == 0].copy()
+                emp_ids = df_appendix["_employee_id"].tolist()
+                weekly_join_df = pd.DataFrame()
+                if include_weekly_appendix and weeks_iso and emp_ids:
+                    weekly_join_df = fetch_weekly_evaluations_for_weeks(weeks_iso, emp_ids)
+                    if not weekly_join_df.empty:
+                        name_map = dict(zip(df_appendix["_employee_id"], df_appendix["Funcionário"]))
+                        hire_map = dict(zip(df_appendix["_employee_id"], df_appendix["_hire_date"]))
+                        weekly_join_df = weekly_join_df[
+                            weekly_join_df.apply(
+                                lambda row: is_week_after_hire(
+                                    hire_map.get(int(row["employee_id"]), ""),
+                                    str(row["week_start"]),
+                                ),
+                                axis=1,
+                            )
+                        ]
+                        weekly_join_df["name"] = weekly_join_df["employee_id"].map(name_map)
+                        weekly_join_df = weekly_join_df.sort_values(["week_start", "name"])
 
-        st.download_button(
-            "⬇️ Baixar PDF (paisagem) — executivo + anexo RH",
-            data=pdf_bytes,
-            file_name=f"relatorio_{month}_executivo_com_anexoRH.pdf",
-            mime="application/pdf",
-        )
+                st.session_state["report_exec_pdf"] = {
+                    "meta": exec_pdf_meta,
+                    "bytes": build_report_pdf_bytes_executivo(
+                        df_pdf=df_pdf,
+                        month=month,
+                        coordinator_name=coordinator_name,
+                        report_observation=report_observation,
+                        weeks_iso=weeks_iso,
+                        weekly_join_df=weekly_join_df,
+                        include_weekly_appendix=include_weekly_appendix,
+                        logo_path="assets/logo.png",
+                    ),
+                }
+
+        exec_pdf = st.session_state.get("report_exec_pdf")
+        if isinstance(exec_pdf, dict) and exec_pdf.get("meta") == exec_pdf_meta:
+            st.download_button(
+                "⬇️ Baixar PDF gerado",
+                data=exec_pdf["bytes"],
+                file_name=f"relatorio_{month}_executivo_com_anexoRH.pdf",
+                mime="application/pdf",
+            )
+        else:
+            st.caption("Gere o PDF quando terminar os filtros e observações.")
 
         render_divider()
         render_section_header("Exportação da tela", "Baixe a visão completa filtrada em CSV.", "Dados")
@@ -2655,7 +2685,7 @@ def render_report_page():
     # =========================
     # TAB 2: Setor unificado
     # =========================
-    with tabs[1]:
+    if report_view == "Setor":
         render_divider()
         render_section_header(
             "Setor unificado",
@@ -2664,8 +2694,9 @@ def render_report_page():
         )
 
         sector_options = ["(Todos)"]
-        if "df" in locals() and isinstance(df, pd.DataFrame) and not df.empty:
-            sector_options += sorted(df["Setor"].dropna().astype(str).unique().tolist())
+        sector_base_df, _ = build_month_df(month, data_marker)
+        if not sector_base_df.empty:
+            sector_options += sorted(sector_base_df["Setor"].dropna().astype(str).unique().tolist())
 
         selected_sector = st.selectbox("Setor para acompanhamento", sector_options, key="sector_followup_filter")
         sector_label = "Todos os setores" if selected_sector == "(Todos)" else selected_sector
@@ -2741,27 +2772,45 @@ def render_report_page():
                 height=100,
                 key="report_observation_sector",
             )
-            pdf_sector = build_sector_followup_pdf_bytes(
-                summary_df=sector_summary_df,
-                employee_df=sector_employee_df,
-                month=month,
-                sector_label=sector_label,
-                coordinator_name=coord_sector,
-                report_observation=sector_observation,
-                logo_path="assets/logo.png",
+            sector_pdf_meta = (
+                month,
+                sector_label,
+                coord_sector,
+                sector_observation,
+                tuple(sector_employee_df["_employee_id"].fillna(0).astype(int).tolist()),
+                data_marker,
             )
             safe_sector = sector_label.strip().replace("/", "-").replace(" ", "_")
-            st.download_button(
-                "⬇️ Baixar PDF (setor unificado)",
-                data=pdf_sector,
-                file_name=f"relatorio_setor_unificado_{safe_sector}_{month}.pdf",
-                mime="application/pdf",
-            )
+            if st.button("Gerar PDF (setor unificado)", type="primary", key="generate_sector_pdf"):
+                with st.spinner("Gerando PDF do setor..."):
+                    st.session_state["report_sector_pdf"] = {
+                        "meta": sector_pdf_meta,
+                        "bytes": build_sector_followup_pdf_bytes(
+                            summary_df=sector_summary_df,
+                            employee_df=sector_employee_df,
+                            month=month,
+                            sector_label=sector_label,
+                            coordinator_name=coord_sector,
+                            report_observation=sector_observation,
+                            logo_path="assets/logo.png",
+                        ),
+                    }
+
+            sector_pdf = st.session_state.get("report_sector_pdf")
+            if isinstance(sector_pdf, dict) and sector_pdf.get("meta") == sector_pdf_meta:
+                st.download_button(
+                    "⬇️ Baixar PDF gerado",
+                    data=sector_pdf["bytes"],
+                    file_name=f"relatorio_setor_unificado_{safe_sector}_{month}.pdf",
+                    mime="application/pdf",
+                )
+            else:
+                st.caption("Gere o PDF depois de revisar setor e observação.")
 
     # =========================
     # TAB 3: Detalhado por funcionário
     # =========================
-    with tabs[2]:
+    if report_view == "Funcionário":
         render_divider()
         render_section_header(
             "Detalhado por funcionário",
@@ -2991,25 +3040,42 @@ def render_report_page():
             key="report_observation_detail",
         )
 
-        pdf_det = build_detailed_employee_pdf_bytes(
-            employee_name=employee_name,
-            employee_sector=employee_sector,
-            employee_role=employee_role,
-            month=month,
-            weeks_iso=weeks_iso,
-            weekly_rows_df=we,
-            errors_df=errs_all,
-            coordinator_name=coord_name,
-            report_observation=detail_observation,
-            logo_path="assets/logo.png",
-            monitor_row=monitor_row,
-            period_summary=period_summary,
-        )
-
         safe_name = employee_name.strip().replace("/", "-")
-        st.download_button(
-            "⬇️ Baixar PDF detalhado (por funcionário)",
-            data=pdf_det,
-            file_name=f"detalhado_{safe_name}_{month}.pdf",
-            mime="application/pdf",
+        detail_pdf_meta = (
+            month,
+            employee_id,
+            coord_name,
+            detail_observation,
+            tuple(weeks_iso),
+            data_marker,
         )
+        if st.button("Gerar PDF detalhado (por funcionário)", type="primary", key="generate_detail_pdf"):
+            with st.spinner("Gerando PDF detalhado..."):
+                st.session_state["report_detail_pdf"] = {
+                    "meta": detail_pdf_meta,
+                    "bytes": build_detailed_employee_pdf_bytes(
+                        employee_name=employee_name,
+                        employee_sector=employee_sector,
+                        employee_role=employee_role,
+                        month=month,
+                        weeks_iso=weeks_iso,
+                        weekly_rows_df=we,
+                        errors_df=errs_all,
+                        coordinator_name=coord_name,
+                        report_observation=detail_observation,
+                        logo_path="assets/logo.png",
+                        monitor_row=monitor_row,
+                        period_summary=period_summary,
+                    ),
+                }
+
+        detail_pdf = st.session_state.get("report_detail_pdf")
+        if isinstance(detail_pdf, dict) and detail_pdf.get("meta") == detail_pdf_meta:
+            st.download_button(
+                "⬇️ Baixar PDF gerado",
+                data=detail_pdf["bytes"],
+                file_name=f"detalhado_{safe_name}_{month}.pdf",
+                mime="application/pdf",
+            )
+        else:
+            st.caption("Gere o PDF depois de revisar funcionário e observação.")
