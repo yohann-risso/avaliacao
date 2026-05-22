@@ -720,8 +720,8 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         f"""
         SELECT
             w.employee_id AS employee_id,
-            e.name AS Funcionário,
-            {clean_expr} AS Semana,
+            e.name AS employee_name,
+            {clean_expr} AS week_start,
             COALESCE(w.assiduidade_just, '') AS assiduidade_just,
             COALESCE(w.qualidade_just, '') AS qualidade_just,
             COALESCE(w.taxa_erros_just, '') AS taxa_erros_just,
@@ -752,14 +752,15 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
     missing_just_rows = []
     for _, row in weekly_justs.iterrows():
         hire_date_iso, termination_date_iso = employee_date_map.get(int(row["employee_id"]), ("", ""))
-        if str(row["Semana"]) not in eligible_weeks_for_valid_employee(hire_date_iso, weeks_iso, termination_date_iso):
+        week_start = str(row["week_start"])
+        if week_start not in eligible_weeks_for_valid_employee(hire_date_iso, weeks_iso, termination_date_iso):
             continue
 
         missing = [label for col, label in just_labels.items() if not str(row.get(col, "") or "").strip()]
         if missing:
             missing_just_rows.append({
-                "Funcionário": row["Funcionário"],
-                "Semana": week_label(datetime.strptime(str(row["Semana"]), "%Y-%m-%d").date()),
+                "Funcionário": row["employee_name"],
+                "Semana": week_label(datetime.strptime(week_start, "%Y-%m-%d").date()),
                 "Justificativas faltantes": ", ".join(missing),
             })
     missing_weekly_justs = pd.DataFrame(missing_just_rows)
@@ -829,7 +830,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         """
         SELECT
             e.id AS employee_id,
-            e.name AS Funcionário,
+            e.name AS employee_name,
             e.hire_date,
             e.monitor_start_date,
             e.leadership_start_date,
@@ -862,7 +863,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         missing = [label for col, label in monitor_labels.items() if not str(row.get(col, "") or "").strip()]
         if missing:
             missing_monitor_just_rows.append({
-                "Funcionário": row["Funcionário"],
+                "Funcionário": row["employee_name"],
                 "Justificativas faltantes": ", ".join(missing),
             })
     missing_monitoria_justs = pd.DataFrame(missing_monitor_just_rows)
