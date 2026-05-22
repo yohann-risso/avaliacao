@@ -1224,7 +1224,8 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
         )
 
         base_df = coerce_mass_evaluators(st.session_state["mass_eval_df"].copy(), evaluator_options)
-        a1, a2, a3, a4, a5, a6, a7 = st.columns(7, gap="small")
+        a1, a2, a3, a4 = st.columns(4, gap="small")
+        a5, a6, a7 = st.columns(3, gap="small")
 
         if a1.button("Marcar todos", key="mass_select_all"):
             base_df["Selecionar"] = True

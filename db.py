@@ -255,6 +255,11 @@ def sync_employee_active_status(con):
     )
 
 
+def refresh_employee_active_statuses():
+    with db() as con:
+        sync_employee_active_status(con)
+
+
 @contextmanager
 def db():
     if is_sqlite_test_backend():

@@ -1,6 +1,12 @@
 import streamlit as st
 
-from db import DATABASE_CONFIG_ERROR, fetch_df, init_db, normalize_month_label
+from db import (
+    DATABASE_CONFIG_ERROR,
+    fetch_df,
+    init_db,
+    normalize_month_label,
+    refresh_employee_active_statuses,
+)
 from theme import apply_kaisan_admin_theme, render_sidebar_process
 from ui_auth import current_user, is_admin_user, render_user_sidebar, require_login
 from ui_employees import page_employees
@@ -10,7 +16,20 @@ from ui_report import build_closing_check_tables, render_report_page
 from utils import current_month_br, month_label_to_br, weeks_for_competencia
 
 
-def _sidebar_snapshot(active_menu: str, menu_options: list[str]) -> tuple[list[dict], list[dict], str]:
+st.set_page_config(
+    page_title="Avaliação & Bonificação • Estoque e Expedição",
+    layout="wide",
+    initial_sidebar_state="auto",
+)
+
+
+@st.cache_data(ttl=45, show_spinner=False)
+def _sidebar_snapshot(
+    active_menu: str,
+    menu_options_key: tuple[str, ...],
+    data_marker: str = "",
+) -> tuple[list[dict], list[dict], str]:
+    menu_options = list(menu_options_key)
     month = normalize_month_label(current_month_br())
     month_br = month_label_to_br(month)
 
@@ -92,14 +111,20 @@ def _sidebar_snapshot(active_menu: str, menu_options: list[str]) -> tuple[list[d
     return steps, stats, month_br
 
 
-st.set_page_config(
-    page_title="Avaliação & Bonificação • Estoque e Expedição",
-    layout="wide",
-    initial_sidebar_state="auto",
-)
+@st.cache_resource(show_spinner=False)
+def _ensure_database_initialized() -> bool:
+    init_db()
+    return True
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def _refresh_employee_active_statuses() -> bool:
+    refresh_employee_active_statuses()
+    return True
 
 try:
-    init_db()
+    _ensure_database_initialized()
+    _refresh_employee_active_statuses()
 except RuntimeError as exc:
     st.error(str(exc) or DATABASE_CONFIG_ERROR)
     st.stop()
@@ -119,8 +144,15 @@ menu_options.extend([
 current_menu = st.session_state.get("main_menu", menu_options[0])
 if current_menu not in menu_options:
     current_menu = menu_options[0]
+    st.session_state["main_menu"] = current_menu
 
-sidebar_steps, sidebar_stats, sidebar_month = _sidebar_snapshot(current_menu, menu_options)
+operation_status = st.session_state.get("kaisan_operation_status") or {}
+sidebar_marker = str(operation_status.get("time", ""))
+sidebar_steps, sidebar_stats, sidebar_month = _sidebar_snapshot(
+    current_menu,
+    tuple(menu_options),
+    sidebar_marker,
+)
 render_sidebar_process(sidebar_month, sidebar_steps, sidebar_stats)
 render_user_sidebar()
 

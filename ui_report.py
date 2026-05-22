@@ -560,7 +560,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
         }
 
     employees = fetch_df(
-        f"""
+        """
         SELECT DISTINCT
             e.id,
             e.name,
@@ -575,18 +575,8 @@ def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
             e.deactivated_at,
             COALESCE(e.is_leadership, 0) AS is_leadership
         FROM employees e
-        LEFT JOIN weekly_evaluations w
-          ON w.employee_id = e.id
-         AND {_clean_week_start_sql("w")} IN ({",".join(["?"] * len(weeks_iso))})
-        LEFT JOIN weekly_errors er
-          ON er.employee_id = e.id
-         AND {_clean_week_start_sql("er")} IN ({",".join(["?"] * len(weeks_iso))})
-        LEFT JOIN monitor_monthly_evaluations m
-          ON m.employee_id = e.id
-         AND TRIM(m.month) = ?
         ORDER BY e.active DESC, e.sector, e.role, e.name
-        """,
-        tuple(weeks_iso + weeks_iso + [month]),
+        """
     )
 
     if employees.empty or not weeks_iso:
@@ -624,6 +614,9 @@ def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
         for _, r in present.iterrows()
         if int(r["employee_id"]) in active_ids and int(r["registros"]) > 0
     } if not present.empty else set()
+    present_weeks_by_employee: dict[int, set[str]] = {}
+    for emp_id, week_start in present_pairs:
+        present_weeks_by_employee.setdefault(emp_id, set()).add(week_start)
 
     expected_pairs = set()
     missing_rows = []
@@ -658,9 +651,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str]) -> dict:
         if hire_date is None:
             continue
 
-        for emp_id, ws in sorted(present_pairs):
-            if emp_id != int(emp["id"]):
-                continue
+        for ws in sorted(present_weeks_by_employee.get(int(emp["id"]), set())):
             if is_week_after_hire(emp.get("hire_date", ""), ws):
                 continue
             pre_hire_rows.append({
@@ -1058,7 +1049,7 @@ def build_month_df(month: str) -> tuple[pd.DataFrame, list[str]]:
     reference_date = week_end_friday(max(weeks)) if weeks else date(year, month_num, 1)
 
     employees = fetch_df(
-        f"""
+        """
         SELECT DISTINCT
             e.id,
             e.name,
@@ -1073,18 +1064,8 @@ def build_month_df(month: str) -> tuple[pd.DataFrame, list[str]]:
             e.deactivated_at,
             COALESCE(e.is_leadership, 0) AS is_leadership
         FROM employees e
-        LEFT JOIN weekly_evaluations w
-          ON w.employee_id = e.id
-         AND {_clean_week_start_sql("w")} IN ({",".join(["?"] * len(weeks_iso))})
-        LEFT JOIN weekly_errors er
-          ON er.employee_id = e.id
-         AND {_clean_week_start_sql("er")} IN ({",".join(["?"] * len(weeks_iso))})
-        LEFT JOIN monitor_monthly_evaluations m
-          ON m.employee_id = e.id
-         AND TRIM(m.month) = ?
         ORDER BY e.sector, e.role, e.name, e.id
-        """,
-        tuple(weeks_iso + weeks_iso + [month]),
+        """
     )
     if employees.empty or not weeks_iso:
         return pd.DataFrame(), weeks_iso
@@ -1110,6 +1091,26 @@ def build_month_df(month: str) -> tuple[pd.DataFrame, list[str]]:
         for _, r in monitor_rows.iterrows():
             monitor_map[int(r["employee_id"])] = r.to_dict()
 
+    weekly_by_employee: dict[int, pd.DataFrame] = {}
+    if not weekly.empty:
+        weekly = weekly.copy()
+        weekly["_employee_id_int"] = weekly["employee_id"].fillna(0).astype(int)
+        weekly["_week_start_str"] = weekly["week_start"].astype(str)
+        weekly_by_employee = {
+            int(emp_id): group
+            for emp_id, group in weekly.groupby("_employee_id_int", sort=False)
+        }
+
+    errors_by_employee: dict[int, pd.DataFrame] = {}
+    if not errors_rows.empty:
+        errors_rows = errors_rows.copy()
+        errors_rows["_employee_id_int"] = errors_rows["employee_id"].fillna(0).astype(int)
+        errors_rows["_week_start_str"] = errors_rows["week_start"].astype(str)
+        errors_by_employee = {
+            int(emp_id): group
+            for emp_id, group in errors_rows.groupby("_employee_id_int", sort=False)
+        }
+
     rows = []
     for _, emp in employees.iterrows():
         if not is_employee_valid_for_period(emp, weeks_iso):
@@ -1126,13 +1127,13 @@ def build_month_df(month: str) -> tuple[pd.DataFrame, list[str]]:
 
         if is_leadership:
             emp_weeks = pd.DataFrame()
-        elif not weekly.empty:
-            emp_weeks = weekly[
-                (weekly["employee_id"] == emp_id)
-                & (weekly["week_start"].astype(str).isin(emp_eligible_weeks))
+        elif emp_id in weekly_by_employee:
+            emp_week_rows = weekly_by_employee[emp_id]
+            emp_weeks = emp_week_rows[
+                emp_week_rows["_week_start_str"].isin(emp_eligible_weeks)
             ]
         else:
-            emp_weeks = weekly
+            emp_weeks = pd.DataFrame()
 
         totals = {key: 0.0 for (key, _label, _weekly_value, _cap) in WEEKLY_CRITERIA}
         prod_vals = []
@@ -1157,10 +1158,10 @@ def build_month_df(month: str) -> tuple[pd.DataFrame, list[str]]:
 
         if is_leadership:
             errors_qtd = 0
-        elif not errors_rows.empty:
-            emp_errors = errors_rows[
-                (errors_rows["employee_id"] == emp_id)
-                & (errors_rows["week_start"].astype(str).isin(emp_eligible_weeks))
+        elif emp_id in errors_by_employee:
+            emp_error_rows = errors_by_employee[emp_id]
+            emp_errors = emp_error_rows[
+                emp_error_rows["_week_start_str"].isin(emp_eligible_weeks)
             ]
             errors_qtd = int(emp_errors["qty"].fillna(0).astype(int).sum())
         else:
@@ -2764,7 +2765,7 @@ def render_report_page():
             return
 
         employees = fetch_df(
-            f"""
+            """
             SELECT DISTINCT
                 e.id,
                 e.name,
@@ -2777,16 +2778,9 @@ def render_report_page():
                 e.is_monitor,
                 e.active
             FROM employees e
-            LEFT JOIN weekly_evaluations w
-              ON w.employee_id = e.id
-             AND {_clean_week_start_sql("w")} IN ({",".join(["?"] * len(weeks_iso))})
-            LEFT JOIN weekly_errors er
-              ON er.employee_id = e.id
-             AND {_clean_week_start_sql("er")} IN ({",".join(["?"] * len(weeks_iso))})
             WHERE COALESCE(e.is_leadership, 0) = 0
             ORDER BY e.active DESC, e.sector, e.role, e.name
-            """,
-            tuple(weeks_iso + weeks_iso),
+            """
         )
         if employees.empty:
             st.info("Nenhum funcionário ativo ou com histórico no mês selecionado.")

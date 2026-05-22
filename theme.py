@@ -376,11 +376,13 @@ def apply_kaisan_admin_theme():
 
         .kaisan-page-copy h1 {
           display: flex;
+          flex-wrap: wrap;
           align-items: center;
           gap: 0.72rem;
           margin: 0.1rem 0 0.38rem;
           font-size: clamp(1.55rem, 2.1vw, 2.05rem);
           line-height: 1.05;
+          overflow-wrap: anywhere;
         }
 
         .kaisan-page-icon {
@@ -472,6 +474,7 @@ def apply_kaisan_admin_theme():
           color: var(--kaisan-ink);
           font-size: 1.35rem;
           line-height: 1.18;
+          overflow-wrap: anywhere;
         }
 
         .kaisan-status-card small {
@@ -515,6 +518,7 @@ def apply_kaisan_admin_theme():
           display: inline-flex;
           align-items: center;
           justify-content: center;
+          max-width: 100%;
           min-height: 1.65rem;
           padding: 0.22rem 0.55rem;
           border-radius: 999px;
@@ -522,6 +526,8 @@ def apply_kaisan_admin_theme():
           font-weight: 850;
           line-height: 1.1;
           white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
 
         .kaisan-chip-info {
@@ -577,6 +583,7 @@ def apply_kaisan_admin_theme():
           color: var(--kaisan-ink);
           font-size: 0.98rem;
           line-height: 1.2;
+          overflow-wrap: anywhere;
         }
 
         .kaisan-stage-tile small {
@@ -743,6 +750,10 @@ def apply_kaisan_admin_theme():
           border-radius: 8px;
           background: var(--kaisan-surface);
           box-shadow: var(--kaisan-shadow-soft);
+        }
+
+        .kaisan-notice > div {
+          min-width: 0;
         }
 
         .kaisan-notice strong {
@@ -1124,12 +1135,16 @@ def apply_kaisan_admin_theme():
         .stDownloadButton > button,
         [data-testid="stBaseButton-secondary"],
         [data-testid="stBaseButton-primary"] {
+          width: 100%;
           min-height: 2.45rem;
           border-radius: var(--kaisan-radius-sm);
           border: 1px solid var(--kaisan-line-strong);
           background: var(--kaisan-surface);
           color: var(--kaisan-navy);
           font-weight: 800;
+          line-height: 1.16;
+          white-space: normal;
+          text-align: center;
           box-shadow: 0 8px 20px rgba(16, 38, 60, 0.06);
           transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
         }
@@ -1271,8 +1286,14 @@ def apply_kaisan_admin_theme():
           }
 
           .kaisan-focus-strip,
-          .kaisan-progress-panel {
+          .kaisan-progress-panel,
+          .kaisan-notice {
             grid-template-columns: 1fr;
+            align-items: stretch;
+          }
+
+          .kaisan-notice {
+            display: grid;
           }
         }
         </style>
