@@ -5,6 +5,7 @@ from ui_report import build_month_df
 def test_month_report_only_lists_employees_valid_for_period(tmp_path, monkeypatch):
     monkeypatch.setattr(db, "DB_PATH", str(tmp_path / "avaliacoes_test.db"))
     db.init_db()
+    build_month_df.clear()
 
     db.insert_employee(
         name="Colaborador Valido",
@@ -52,3 +53,6 @@ def test_month_report_only_lists_employees_valid_for_period(tmp_path, monkeypatc
         "Colaborador Desligado No Mes",
         "Colaborador Valido",
     ]
+
+    active_report, _weeks = build_month_df("05/2026", include_inactive=False)
+    assert active_report["Funcionário"].tolist() == ["Colaborador Valido"]

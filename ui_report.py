@@ -540,7 +540,12 @@ def fetch_weekly_evaluations_for_weeks(weeks_iso: list[str], employee_ids: list[
 
 
 @st.cache_data(ttl=90, show_spinner=False)
-def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: str = "") -> dict:
+def build_closing_check_tables(
+    month: str,
+    weeks_iso: list[str],
+    data_marker: str = "",
+    include_inactive: bool = True,
+) -> dict:
     month = normalize_month_label(month)
     weeks_iso = [str(w).strip() for w in weeks_iso]
     empty = pd.DataFrame()
@@ -561,8 +566,11 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
             "missing_monitoria_justs": empty,
         }
 
+    employee_status_where = "" if include_inactive else "WHERE COALESCE(e.active, 1) = 1"
+    employee_status_and = "" if include_inactive else "AND COALESCE(e.active, 1) = 1"
+
     employees = fetch_df(
-        """
+        f"""
         SELECT DISTINCT
             e.id,
             e.name,
@@ -577,6 +585,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
             e.deactivated_at,
             COALESCE(e.is_leadership, 0) AS is_leadership
         FROM employees e
+        {employee_status_where}
         ORDER BY e.active DESC, e.sector, e.role, e.name
         """
     )
@@ -678,6 +687,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         JOIN employees e ON e.id = w.employee_id
         WHERE {clean_expr} IN ({week_placeholders})
           AND COALESCE(e.is_leadership, 0) = 0
+          {employee_status_and}
         GROUP BY w.employee_id, e.name, e.sector, e.role, {clean_expr}
         HAVING COUNT(*) > 1
         ORDER BY e.name, Semana
@@ -695,6 +705,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         FROM weekly_evaluations w
         JOIN employees e ON e.id = w.employee_id
         WHERE w.week_start <> {clean_expr}
+          {employee_status_and}
         ORDER BY e.name, w.id
         """
     )
@@ -711,6 +722,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         JOIN employees e ON e.id = w.employee_id
         WHERE COALESCE(e.is_leadership, 0) = 1
           AND {clean_expr} IN ({week_placeholders})
+          {employee_status_and}
         ORDER BY e.name, Semana
         """,
         tuple(weeks_iso),
@@ -731,6 +743,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         JOIN employees e ON e.id = w.employee_id
         WHERE {clean_expr} IN ({week_placeholders})
           AND COALESCE(e.is_leadership, 0) = 0
+          {employee_status_and}
         """,
         tuple(weeks_iso),
     )
@@ -827,7 +840,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
     missing_monitoria = pd.DataFrame(missing_monitor_rows)
 
     monitor_justs = fetch_df(
-        """
+        f"""
         SELECT
             e.id AS employee_id,
             e.name AS employee_name,
@@ -844,6 +857,7 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
         FROM monitor_monthly_evaluations m
         JOIN employees e ON e.id = m.employee_id
         WHERE TRIM(m.month) = ?
+          {employee_status_and}
         ORDER BY e.name
         """,
         (month,),
@@ -900,8 +914,13 @@ def build_closing_check_tables(month: str, weeks_iso: list[str], data_marker: st
     }
 
 
-def render_closing_check(month: str, weeks_iso: list[str], data_marker: str = ""):
-    checks = build_closing_check_tables(month, weeks_iso, data_marker)
+def render_closing_check(
+    month: str,
+    weeks_iso: list[str],
+    data_marker: str = "",
+    include_inactive: bool = True,
+):
+    checks = build_closing_check_tables(month, weeks_iso, data_marker, include_inactive)
     summary = checks["summary"]
     expected = int(summary["expected"] or 0)
     done = int(summary["done"] or 0)
@@ -1039,7 +1058,11 @@ def render_closing_check(month: str, weeks_iso: list[str], data_marker: str = ""
 # Data builders
 # -----------------------------
 @st.cache_data(ttl=90, show_spinner=False)
-def build_month_df(month: str, data_marker: str = "") -> tuple[pd.DataFrame, list[str]]:
+def build_month_df(
+    month: str,
+    data_marker: str = "",
+    include_inactive: bool = True,
+) -> tuple[pd.DataFrame, list[str]]:
     """
     Monta dataframe consolidado do mês (tela).
     Inclui _employee_id para joins corretos no anexo RH.
@@ -1052,8 +1075,9 @@ def build_month_df(month: str, data_marker: str = "") -> tuple[pd.DataFrame, lis
         return pd.DataFrame(), weeks_iso
     reference_date = week_end_friday(max(weeks)) if weeks else date(year, month_num, 1)
 
+    employee_status_where = "" if include_inactive else "WHERE COALESCE(e.active, 1) = 1"
     employees = fetch_df(
-        """
+        f"""
         SELECT DISTINCT
             e.id,
             e.name,
@@ -1068,6 +1092,7 @@ def build_month_df(month: str, data_marker: str = "") -> tuple[pd.DataFrame, lis
             e.deactivated_at,
             COALESCE(e.is_leadership, 0) AS is_leadership
         FROM employees e
+        {employee_status_where}
         ORDER BY e.sector, e.role, e.name, e.id
         """
     )
@@ -1411,12 +1436,13 @@ def build_sector_followup_tables(
     month: str,
     sector_filter: str = "(Todos)",
     data_marker: str = "",
+    include_inactive: bool = True,
 ) -> tuple[pd.DataFrame, pd.DataFrame, list[str]]:
     """
     Monta uma visão unificada para feedback e acompanhamento por setor.
     Retorna: resumo por setor, acompanhamento por funcionário e semanas da competência.
     """
-    month_df, weeks_iso = build_month_df(month, data_marker)
+    month_df, weeks_iso = build_month_df(month, data_marker, include_inactive)
     if month_df.empty:
         return pd.DataFrame(), pd.DataFrame(), weeks_iso
 
@@ -1780,9 +1806,7 @@ def build_report_pdf_bytes_executivo(
     
     if "Funcionário" in dfp.columns:
         dfp = dfp.sort_values("Funcionário", key=lambda s: s.astype(str).str.lower()).reset_index(drop=True)
-
-    # Resumo do PDF
-    total_people = len(dfp)
+        
     total_geral = dfp["Total"].apply(brl_to_float).sum() if "Total" in dfp.columns else 0.0
 
     def card(lbl: str, val: str):
@@ -1799,8 +1823,7 @@ def build_report_pdf_bytes_executivo(
 
     cards = Table(
         [[
-            card("Funcionários no relatório", str(total_people)),
-            card("Total geral (base + monitoria + adicional)", brl(float(total_geral))),
+            card("Total", brl(float(total_geral))),
         ]],
         colWidths=[190 * mm, 190 * mm],
     )
@@ -1897,7 +1920,7 @@ def build_report_pdf_bytes_executivo(
         lideranca_dfp = pd.DataFrame()
 
     append_report_table("Colaboradores avaliados", colaboradores_dfp)
-    append_report_table("Coordenação/Supervisão (base padrão, sem avaliação)", lideranca_dfp)
+    append_report_table("Coordenação/Supervisão", lideranca_dfp)
 
     # --- ANEXO RH: resultados semanais (%) ---
     if include_weekly_appendix and weeks_iso and weekly_join_df is not None and (not weekly_join_df.empty):
@@ -2465,10 +2488,10 @@ def render_report_page():
     render_operation_status()
     data_marker = str((st.session_state.get("kaisan_operation_status") or {}).get("time", ""))
 
-    top_left, top_right = st.columns([2.6, 1], gap="large", vertical_alignment="bottom")
+    top_left, top_month, top_filter = st.columns([2.2, 1, 1], gap="large", vertical_alignment="bottom")
     with top_left:
         st.caption("Selecione a competência e revise pendências antes de gerar os arquivos finais.")
-    with top_right:
+    with top_month:
         month_input = st.text_input("Mês (MM/AAAA)", value=current_month_br())
         try:
             month = normalize_month_label(month_input)
@@ -2476,6 +2499,8 @@ def render_report_page():
             st.error("Mês inválido. Use MM/AAAA (ex.: 05/2026).")
             return
         month_br = month_label_to_br(month)
+    with top_filter:
+        include_inactive = st.toggle("Incluir desativados", value=True, key="report_include_inactive")
 
     report_views = ["Resumo", "Setor", "Funcionário"]
     if hasattr(st, "segmented_control"):
@@ -2496,18 +2521,18 @@ def render_report_page():
     if report_view == "Resumo":
         render_divider()
         try:
-            df, weeks_iso = build_month_df(month, data_marker)
+            df, weeks_iso = build_month_df(month, data_marker, include_inactive)
         except Exception:
             st.error("Mês inválido. Use MM/AAAA (ex.: 05/2026).")
             return
 
-        render_closing_check(month, weeks_iso, data_marker)
+        render_closing_check(month, weeks_iso, data_marker, include_inactive)
 
         with st.expander("Semanas consideradas no fechamento"):
             st.write([week_label(datetime.strptime(w, "%Y-%m-%d").date()) for w in weeks_iso])
 
         if df.empty:
-            st.info("Sem dados para o período (ou sem funcionários ativos).")
+            st.info("Sem dados para o período e filtro selecionados.")
             return
 
         # Filtros (tela)
@@ -2614,6 +2639,7 @@ def render_report_page():
             report_observation,
             bool(include_weekly_appendix),
             tuple(df_view["_employee_id"].fillna(0).astype(int).tolist()),
+            bool(include_inactive),
             data_marker,
         )
         if st.button("Gerar PDF (paisagem) — executivo + anexo RH", type="primary", key="generate_exec_pdf"):
@@ -2694,7 +2720,7 @@ def render_report_page():
         )
 
         sector_options = ["(Todos)"]
-        sector_base_df, _ = build_month_df(month, data_marker)
+        sector_base_df, _ = build_month_df(month, data_marker, include_inactive)
         if not sector_base_df.empty:
             sector_options += sorted(sector_base_df["Setor"].dropna().astype(str).unique().tolist())
 
@@ -2706,6 +2732,7 @@ def render_report_page():
                 month,
                 selected_sector,
                 data_marker,
+                include_inactive,
             )
         except Exception:
             st.error("Não foi possível montar o relatório unificado do setor para a competência selecionada.")
@@ -2778,6 +2805,7 @@ def render_report_page():
                 coord_sector,
                 sector_observation,
                 tuple(sector_employee_df["_employee_id"].fillna(0).astype(int).tolist()),
+                bool(include_inactive),
                 data_marker,
             )
             safe_sector = sector_label.strip().replace("/", "-").replace(" ", "_")
@@ -2826,8 +2854,9 @@ def render_report_page():
             st.error("Mês inválido. Use MM/AAAA (ex.: 05/2026).")
             return
 
+        employee_status_and = "" if include_inactive else "AND COALESCE(e.active, 1) = 1"
         employees = fetch_df(
-            """
+            f"""
             SELECT DISTINCT
                 e.id,
                 e.name,
@@ -2841,11 +2870,12 @@ def render_report_page():
                 e.active
             FROM employees e
             WHERE COALESCE(e.is_leadership, 0) = 0
+              {employee_status_and}
             ORDER BY e.active DESC, e.sector, e.role, e.name
             """
         )
         if employees.empty:
-            st.info("Nenhum funcionário ativo ou com histórico no mês selecionado.")
+            st.info("Nenhum funcionário para o período e filtro selecionados.")
             return
 
         employees = employees[
@@ -2899,7 +2929,7 @@ def render_report_page():
                 summary_row = summary_match.iloc[0].to_dict()
 
         if not summary_row:
-            detail_month_df, _ = build_month_df(month, data_marker)
+            detail_month_df, _ = build_month_df(month, data_marker, include_inactive)
             if not detail_month_df.empty and "_employee_id" in detail_month_df.columns:
                 summary_match = detail_month_df[detail_month_df["_employee_id"].astype(int) == int(employee_id)]
                 if not summary_match.empty:
@@ -3047,6 +3077,7 @@ def render_report_page():
             coord_name,
             detail_observation,
             tuple(weeks_iso),
+            bool(include_inactive),
             data_marker,
         )
         if st.button("Gerar PDF detalhado (por funcionário)", type="primary", key="generate_detail_pdf"):

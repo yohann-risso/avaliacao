@@ -89,3 +89,38 @@ def test_closing_check_reports_missing_monitoria_justifications(tmp_path, monkey
     missing = checks["missing_monitoria_justs"]
     assert missing["Funcionário"].tolist() == ["Bruno Monitor"]
     assert missing.iloc[0]["Justificativas faltantes"] == "Acompanhamento de metas"
+
+
+def test_closing_check_can_ignore_inactive_employees(tmp_path, monkeypatch):
+    _reset_db(tmp_path, monkeypatch)
+    db.insert_employee(
+        name="Ana Ativa",
+        sector="Expedição",
+        role="Separador",
+        is_monitor=False,
+        hire_date="01/04/2026",
+    )
+    db.insert_employee(
+        name="Bruno Desativado",
+        sector="Expedição",
+        role="Separador",
+        is_monitor=False,
+        hire_date="01/04/2026",
+        termination_date="12/05/2026",
+    )
+
+    checks_all = build_closing_check_tables(
+        "2026-05",
+        MAY_2026_WEEKS,
+        "inactive-included",
+        include_inactive=True,
+    )
+    checks_active = build_closing_check_tables(
+        "2026-05",
+        MAY_2026_WEEKS,
+        "inactive-excluded",
+        include_inactive=False,
+    )
+
+    assert "Bruno Desativado" in checks_all["missing_weekly"]["Funcionário"].tolist()
+    assert "Bruno Desativado" not in checks_active["missing_weekly"]["Funcionário"].tolist()
