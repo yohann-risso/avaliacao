@@ -22,6 +22,16 @@ st.set_page_config(
 
 NAV_QUERY_KEY = "tela"
 NAV_WIDGET_KEY = "main_menu_nav"
+DATABASE_INIT_HELP = (
+    "Confira se `APP_DATABASE_URL` nos Secrets é a connection string PostgreSQL/Supabase "
+    "completa (`postgres://` ou `postgresql://`), com senha correta e `sslmode=require`. "
+    "No Streamlit Cloud, prefira a URL do pooler Session do Supabase."
+)
+
+
+def _database_init_error_message(exc: Exception) -> str:
+    detail = redact_sensitive(str(exc) or DATABASE_CONFIG_ERROR)
+    return f"{detail}\n\n{DATABASE_INIT_HELP}"
 
 
 @st.cache_data(ttl=45, show_spinner=False)
@@ -184,14 +194,12 @@ try:
     _ensure_database_initialized()
     _refresh_employee_active_statuses()
 except RuntimeError as exc:
-    st.error(redact_sensitive(str(exc) or DATABASE_CONFIG_ERROR))
+    log_sanitized_exception("Falha ao inicializar banco", exc)
+    st.error(_database_init_error_message(exc))
     st.stop()
 except Exception as exc:
     log_sanitized_exception("Falha ao inicializar banco", exc)
-    st.error(
-        "Não foi possível inicializar o banco. Confira a configuração do "
-        "Supabase/PostgreSQL nos Secrets."
-    )
+    st.error(_database_init_error_message(exc))
     st.stop()
 
 apply_kaisan_admin_theme()

@@ -457,20 +457,49 @@ def init_postgres_db():
         ):
             con.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY;")
         con.execute("""
-        REVOKE ALL ON TABLE
-            login_users,
-            employees,
-            weekly_evaluations,
-            weekly_errors,
-            monitor_monthly_evaluations
-        FROM anon, authenticated;
+        -- Supabase has these API roles, but plain PostgreSQL deployments may not.
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+                EXECUTE '
+                    REVOKE ALL ON TABLE
+                        login_users,
+                        employees,
+                        weekly_evaluations,
+                        weekly_errors,
+                        monitor_monthly_evaluations
+                    FROM anon
+                ';
+            END IF;
+
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+                EXECUTE '
+                    REVOKE ALL ON TABLE
+                        login_users,
+                        employees,
+                        weekly_evaluations,
+                        weekly_errors,
+                        monitor_monthly_evaluations
+                    FROM authenticated
+                ';
+            END IF;
+        END $$;
         """)
 
 
 def init_db():
     if not is_sqlite_test_backend():
-        require_postgres_database_url()
-        init_postgres_db()
+        try:
+            require_postgres_database_url()
+            init_postgres_db()
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            raise RuntimeError(
+                "Falha ao conectar ou preparar o banco PostgreSQL/Supabase. "
+                "Confira APP_DATABASE_URL nos Secrets, senha, host, porta e sslmode=require. "
+                f"Detalhe técnico: {exc}"
+            ) from exc
         return
 
     with db() as con:
