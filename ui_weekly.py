@@ -49,12 +49,14 @@ from db import (
     upsert_weekly_eval,
     upsert_weekly_evals,
     add_weekly_error,
+    add_weekly_errors,
     list_weekly_errors,
     delete_weekly_error,
     list_last_weekly,
 )
 from rules import suggest_taxa_erros_pct
 from ui_auth import current_evaluator_name, evaluator_options_for_current_user
+from weekly_error_import import load_weekly_error_import_file, prepare_weekly_error_import
 
 
 # -----------------------------
@@ -517,6 +519,153 @@ def sync_weekly_entry_inputs(items_default: int, taxa_default: float):
         st.session_state["wk_items_count_input"] = int(st.session_state.get("wk_items_count", items_default))
     if should_sync or "wk_taxa_erros_pct_input" not in st.session_state:
         st.session_state["wk_taxa_erros_pct_input"] = float(st.session_state.get("wk_taxa_erros_pct", taxa_default))
+
+
+WEEKLY_ERROR_IMPORT_STATE_KEY = "wk_error_import_preview"
+WEEKLY_ERROR_IMPORT_OPEN_KEY = "wk_error_import_open"
+
+
+def clear_weekly_error_import_state():
+    for key in [WEEKLY_ERROR_IMPORT_STATE_KEY, WEEKLY_ERROR_IMPORT_OPEN_KEY, "wk_error_import_feedback"]:
+        st.session_state.pop(key, None)
+
+
+def preview_weekly_error_import(uploaded_file, employees_df: pd.DataFrame, default_week_start_iso: str) -> dict:
+    raw_df = load_weekly_error_import_file(uploaded_file)
+    return prepare_weekly_error_import(
+        raw_df=raw_df,
+        employees_df=employees_df,
+        default_week_start_iso=default_week_start_iso,
+    )
+
+
+def render_weekly_error_import_confirmation():
+    preview = st.session_state.get(WEEKLY_ERROR_IMPORT_STATE_KEY)
+    if not isinstance(preview, dict):
+        st.info("Nenhuma importação pendente para confirmar.")
+        if st.button("Fechar", key="close_empty_error_import"):
+            clear_weekly_error_import_state()
+            st.rerun()
+        return
+
+    summary = preview.get("summary", {})
+    preview_df = preview.get("preview_df", pd.DataFrame())
+    valid_rows = preview.get("valid_rows", [])
+    total = int(summary.get("total", 0) or 0)
+    valid = int(summary.get("valid", 0) or 0)
+    invalid = int(summary.get("invalid", 0) or 0)
+
+    render_status_cards([
+        {"title": "Linhas lidas", "value": str(total), "detail": "do XLSX", "tone": "neutral"},
+        {"title": "Prontas", "value": str(valid), "detail": "sem pendência", "tone": "success"},
+        {"title": "Revisar", "value": str(invalid), "detail": "bloqueiam a importação", "tone": "danger" if invalid else "neutral"},
+    ])
+
+    if invalid:
+        st.error("Corrija as linhas marcadas como REVISAR e gere a prévia novamente antes de importar.")
+    elif valid:
+        st.success("Prévia tratada e pronta. Ao confirmar, os registros serão adicionados ao log de erros.")
+    else:
+        st.warning("Nenhuma linha válida foi encontrada para importar.")
+
+    if isinstance(preview_df, pd.DataFrame) and not preview_df.empty:
+        display_df = preview_df.rename(columns={
+            "source_row": "Linha",
+            "status": "Status",
+            "funcionario": "Funcionário",
+            "setor": "Setor",
+            "match": "Identificação",
+            "score": "Score",
+            "week_start": "Semana",
+            "role_snapshot": "Função",
+            "error_type": "Tipo",
+            "severity": "Gravidade",
+            "qty": "Qtd",
+            "notes": "Obs",
+            "created_at": "Criado em",
+            "mensagem": "Mensagem",
+        })
+        cols = [
+            "Linha", "Status", "employee_id", "Funcionário", "Setor", "Identificação",
+            "Semana", "Função", "Tipo", "Gravidade", "Qtd", "Obs", "Criado em", "Mensagem",
+        ]
+        st.dataframe(display_df[[c for c in cols if c in display_df.columns]], width="stretch", hide_index=True)
+
+    st.caption("A importação adiciona novos registros em weekly_errors; ela não substitui nem remove registros existentes.")
+    c1, c2 = st.columns([1, 1], gap="medium")
+    with c1:
+        if st.button("Importar registros", type="primary", disabled=invalid > 0 or valid == 0, key="confirm_weekly_error_import"):
+            with st.spinner("Importando erros para o banco..."):
+                imported = add_weekly_errors(valid_rows)
+            clear_weekly_error_import_state()
+            mark_operation_status(
+                "Erros importados",
+                f"{imported} registro(s) adicionados ao log de erros.",
+                "success",
+            )
+            st.rerun()
+    with c2:
+        if st.button("Cancelar importação", type="secondary", key="cancel_weekly_error_import"):
+            clear_weekly_error_import_state()
+            st.rerun()
+
+
+def render_weekly_error_import_dialog_if_needed():
+    if not st.session_state.get(WEEKLY_ERROR_IMPORT_OPEN_KEY):
+        return
+
+    if hasattr(st, "dialog"):
+        @st.dialog("Confirmar importação de erros")
+        def _dialog():
+            render_weekly_error_import_confirmation()
+
+        _dialog()
+        return
+
+    with st.expander("Confirmar importação de erros", expanded=True):
+        render_weekly_error_import_confirmation()
+
+
+def render_weekly_error_import_panel(employees_df: pd.DataFrame, ws_iso: str):
+    with st.expander("Importar XLSX de erros", expanded=False):
+        st.caption(
+            "Use a aba Importacao_Erros do modelo. Se employee_id estiver vazio, o app tenta identificar pelo nome; "
+            "se week_start vier vazio, usa a semana selecionada nesta tela."
+        )
+        uploaded = st.file_uploader(
+            "Arquivo XLSX",
+            type=["xlsx"],
+            key="weekly_error_import_file",
+        )
+        c1, c2 = st.columns([1, 1], gap="medium")
+        with c1:
+            preview_clicked = st.button(
+                "Pré-visualizar importação",
+                type="primary",
+                disabled=uploaded is None,
+                key="preview_weekly_error_import",
+            )
+        with c2:
+            if st.button("Limpar prévia", type="secondary", key="clear_weekly_error_import"):
+                clear_weekly_error_import_state()
+                st.rerun()
+
+        feedback = st.session_state.get("wk_error_import_feedback")
+        if feedback:
+            st.warning(str(feedback))
+
+        if preview_clicked and uploaded is not None:
+            try:
+                with st.spinner("Lendo XLSX e tratando os dados..."):
+                    preview = preview_weekly_error_import(uploaded, employees_df, ws_iso)
+                st.session_state[WEEKLY_ERROR_IMPORT_STATE_KEY] = preview
+                st.session_state[WEEKLY_ERROR_IMPORT_OPEN_KEY] = True
+                st.session_state.pop("wk_error_import_feedback", None)
+            except Exception as exc:
+                st.session_state["wk_error_import_feedback"] = f"Não foi possível ler o arquivo: {exc}"
+                st.rerun()
+
+    render_weekly_error_import_dialog_if_needed()
 
 
 def row_pcts_from_mass_row(row: pd.Series) -> dict:
@@ -1838,6 +1987,9 @@ def page_weekly():
                     "success",
                 )
                 st.rerun()
+
+        render_divider()
+        render_weekly_error_import_panel(emp, ws_iso)
 
         errs = list_weekly_errors(employee_id, ws_iso)
         if errs.empty:

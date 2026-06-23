@@ -1293,14 +1293,44 @@ def list_last_weekly(limit: int = 12):
 # ----------------------
 # Weekly Errors (log)
 # ----------------------
+WEEKLY_ERROR_INSERT_SQL = """
+INSERT INTO weekly_errors (
+    employee_id, week_start, role_snapshot, error_type, severity, qty, notes, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+
 def add_weekly_error(employee_id: int, week_start_iso: str, role_snapshot: str, error_type: str, severity: str, qty: int, notes: str):
     now = datetime.now().isoformat(timespec="seconds")
     week_start_iso = normalize_week_start_iso(week_start_iso)
-    exec_sql("""
-        INSERT INTO weekly_errors (
-            employee_id, week_start, role_snapshot, error_type, severity, qty, notes, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (employee_id, week_start_iso, role_snapshot, error_type, severity, int(qty), notes.strip(), now))
+    exec_sql(WEEKLY_ERROR_INSERT_SQL, (employee_id, week_start_iso, role_snapshot, error_type, severity, int(qty), notes.strip(), now))
+
+
+def add_weekly_errors(rows: list[dict]) -> int:
+    if not rows:
+        return 0
+
+    now = datetime.now().isoformat(timespec="seconds")
+    params = []
+    for row in rows:
+        week_start_iso = normalize_week_start_iso(row.get("week_start_iso") or row.get("week_start"))
+        created_at = str(row.get("created_at") or "").strip() or now
+        params.append((
+            int(row.get("employee_id")),
+            str(week_start_iso),
+            str(row.get("role_snapshot", "")).strip(),
+            str(row.get("error_type", "")).strip(),
+            str(row.get("severity", "")).strip(),
+            int(row.get("qty", 1)),
+            str(row.get("notes", "")).strip(),
+            created_at,
+        ))
+
+    with db() as con:
+        con.executemany(WEEKLY_ERROR_INSERT_SQL, params)
+
+    return len(params)
+
 
 def list_weekly_errors(employee_id: int, week_start_iso: str) -> pd.DataFrame:
     week_start_iso = normalize_week_start_iso(week_start_iso)
