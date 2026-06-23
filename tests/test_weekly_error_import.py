@@ -4,7 +4,7 @@ import db
 from weekly_error_import import prepare_weekly_error_import
 
 
-def test_prepare_weekly_error_import_matches_by_partial_name_and_defaults_week():
+def test_prepare_weekly_error_import_matches_by_partial_name_and_calculates_week():
     employees = pd.DataFrame(
         [
             {
@@ -19,6 +19,7 @@ def test_prepare_weekly_error_import_matches_by_partial_name_and_defaults_week()
         [
             {
                 "nome": "ana exped",
+                "data do ocorrido": "2026-06-03",
                 "tipo": "Divergencia de Enderecamento",
                 "gravidade": "médio",
                 "qtd": "",
@@ -27,7 +28,7 @@ def test_prepare_weekly_error_import_matches_by_partial_name_and_defaults_week()
         ]
     )
 
-    preview = prepare_weekly_error_import(raw, employees, default_week_start_iso="2026-06-01")
+    preview = prepare_weekly_error_import(raw, employees)
 
     assert preview["summary"] == {"total": 1, "valid": 1, "invalid": 0}
     row = preview["valid_rows"][0]
@@ -40,7 +41,8 @@ def test_prepare_weekly_error_import_matches_by_partial_name_and_defaults_week()
 
     display = preview["preview_df"].iloc[0]
     assert display["match"] == "nome_parcial"
-    assert "week_start vazio" in display["mensagem"]
+    assert display["occurred_at"] == "2026-06-03"
+    assert "semana calculada" in display["mensagem"]
 
 
 def test_prepare_weekly_error_import_blocks_ambiguous_name():
@@ -68,6 +70,48 @@ def test_prepare_weekly_error_import_blocks_ambiguous_name():
     assert preview["summary"]["invalid"] == 1
     assert preview["preview_df"].iloc[0]["status"] == "REVISAR"
     assert "employee_id" in preview["preview_df"].iloc[0]["mensagem"]
+
+
+def test_prepare_weekly_error_import_accepts_friendly_portuguese_headers():
+    employees = pd.DataFrame(
+        [
+            {
+                "id": 20,
+                "name": "Maria Souza",
+                "sector": "Expedição",
+                "role": "Conferente",
+            }
+        ]
+    )
+    raw = pd.DataFrame(
+        [
+            {
+                "Funcionário *": "Maria Souza",
+                "ID (opcional)": "",
+                "Data do ocorrido *": "2026-06-04",
+                "Tipo do erro *": "Avaria",
+                "Gravidade *": "BAIXO",
+                "Quantidade": "",
+                "Observação": "Avaria leve.",
+                "Função (opcional)": "",
+                "Criado em (opcional)": "",
+                "Status da linha": "OK",
+                "Orientação": "Formula local",
+            }
+        ]
+    )
+
+    preview = prepare_weekly_error_import(raw, employees)
+
+    assert preview["summary"] == {"total": 1, "valid": 1, "invalid": 0}
+    row = preview["valid_rows"][0]
+    assert row["employee_id"] == 20
+    assert row["week_start_iso"] == "2026-06-01"
+    assert row["role_snapshot"] == "Conferente"
+    assert row["error_type"] == "Avaria"
+    assert row["severity"] == "BAIXO"
+    assert row["qty"] == 1
+    assert row["notes"] == "Avaria leve."
 
 
 def test_add_weekly_errors_inserts_rows(tmp_path, monkeypatch):

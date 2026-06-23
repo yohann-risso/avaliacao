@@ -18,10 +18,14 @@ CANONICAL_COLUMNS = {
         "employee_id",
         "employee id",
         "id",
+        "id opcional",
         "id funcionario",
         "id_funcionario",
+        "id funcionario opcional",
         "funcionario_id",
         "colaborador_id",
+        "id colaborador",
+        "id colaborador opcional",
     },
     "employee_name": {
         "employee_name",
@@ -29,13 +33,31 @@ CANONICAL_COLUMNS = {
         "nome_funcionario",
         "funcionario",
         "funcionário",
+        "funcionario obrigatorio",
+        "funcionário obrigatorio",
+        "funcionário obrigatório",
         "colaborador",
         "nome",
         "name",
     },
+    "occurred_at": {
+        "occurred_at",
+        "data do ocorrido",
+        "data do ocorrido obrigatorio",
+        "data do ocorrido obrigatório",
+        "data ocorrido",
+        "data ocorrido obrigatorio",
+        "data ocorrido obrigatório",
+        "ocorrido em",
+    },
     "week_start": {
         "week_start",
         "semana",
+        "semana opcional",
+        "semana segunda feira",
+        "semana segunda-feira",
+        "semana segunda feira opcional",
+        "semana segunda-feira opcional",
         "semana_inicio",
         "inicio_semana",
         "data_semana",
@@ -45,6 +67,8 @@ CANONICAL_COLUMNS = {
         "role_snapshot",
         "funcao",
         "função",
+        "funcao opcional",
+        "função opcional",
         "cargo",
         "role",
     },
@@ -53,28 +77,41 @@ CANONICAL_COLUMNS = {
         "tipo",
         "tipo_erro",
         "tipo de erro",
+        "tipo de erro obrigatorio",
+        "tipo de erro obrigatório",
+        "tipo do erro",
+        "tipo do erro obrigatorio",
+        "tipo do erro obrigatório",
         "erro",
     },
     "severity": {
         "severity",
         "gravidade",
+        "gravidade obrigatorio",
+        "gravidade obrigatório",
     },
     "qty": {
         "qty",
         "qtd",
+        "qtd opcional",
         "quantidade",
+        "quantidade opcional",
     },
     "notes": {
         "notes",
         "obs",
         "observacao",
         "observação",
+        "observacao opcional",
+        "observação opcional",
         "nota",
         "notas",
     },
     "created_at": {
         "created_at",
         "criado_em",
+        "criado em",
+        "criado em opcional",
         "data_criacao",
     },
 }
@@ -88,6 +125,7 @@ ALIASES_TO_CANONICAL = {
 DATA_COLUMNS = [
     "employee_id",
     "employee_name",
+    "occurred_at",
     "week_start",
     "role_snapshot",
     "error_type",
@@ -200,6 +238,14 @@ def parse_week_start(value: Any, default_week_start_iso: str = "") -> tuple[str,
     return parsed_date.isoformat(), message
 
 
+def parse_occurred_at(value: Any) -> tuple[str, str]:
+    parsed_date = parse_excel_date(value)
+    if parsed_date is None:
+        raise ValueError("data do ocorrido vazia ou invalida")
+    week_start = parsed_date - timedelta(days=parsed_date.weekday())
+    return parsed_date.isoformat(), week_start.isoformat()
+
+
 def parse_created_at(value: Any) -> tuple[str, str]:
     if is_blank(value):
         return "", ""
@@ -290,8 +336,8 @@ def find_header_row(raw_df: pd.DataFrame) -> int | None:
         canonical = {canonical_column_name(cell) for cell in row.tolist() if not is_blank(cell)}
         has_core = {"error_type", "severity"}.issubset(canonical)
         has_person = bool({"employee_id", "employee_name"} & canonical)
-        has_week = "week_start" in canonical
-        if has_core and has_person and has_week:
+        has_date = bool({"week_start", "occurred_at"} & canonical)
+        if has_core and has_person and has_date:
             return int(idx)
     return None
 
@@ -432,13 +478,22 @@ def prepare_weekly_error_import(
         elif match.message:
             row_messages.append(match.message)
 
-        try:
-            week_start_iso, week_msg = parse_week_start(row.get("week_start"), default_week_start_iso)
-            if week_msg:
-                row_messages.append(week_msg)
-        except ValueError as exc:
-            week_start_iso = ""
-            row_errors.append(str(exc))
+        occurred_at_iso = ""
+        if not is_blank(row.get("occurred_at")):
+            try:
+                occurred_at_iso, week_start_iso = parse_occurred_at(row.get("occurred_at"))
+                row_messages.append("semana calculada pela data do ocorrido")
+            except ValueError as exc:
+                week_start_iso = ""
+                row_errors.append(str(exc))
+        else:
+            try:
+                week_start_iso, week_msg = parse_week_start(row.get("week_start"), "")
+                if week_msg:
+                    row_messages.append(week_msg)
+            except ValueError:
+                week_start_iso = ""
+                row_errors.append("data do ocorrido obrigatoria")
 
         role_snapshot = clean_text(row.get("role_snapshot")) or match.role
         if not role_snapshot:
@@ -475,6 +530,7 @@ def prepare_weekly_error_import(
             "setor": match.sector,
             "match": match.method,
             "score": match.score,
+            "occurred_at": occurred_at_iso,
             "week_start": week_start_iso,
             "role_snapshot": role_snapshot,
             "error_type": error_type or clean_text(row.get("error_type")),

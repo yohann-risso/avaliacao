@@ -576,7 +576,8 @@ def render_weekly_error_import_confirmation():
             "setor": "Setor",
             "match": "Identificação",
             "score": "Score",
-            "week_start": "Semana",
+            "occurred_at": "Data do ocorrido",
+            "week_start": "Semana calculada",
             "role_snapshot": "Função",
             "error_type": "Tipo",
             "severity": "Gravidade",
@@ -587,7 +588,7 @@ def render_weekly_error_import_confirmation():
         })
         cols = [
             "Linha", "Status", "employee_id", "Funcionário", "Setor", "Identificação",
-            "Semana", "Função", "Tipo", "Gravidade", "Qtd", "Obs", "Criado em", "Mensagem",
+            "Data do ocorrido", "Semana calculada", "Função", "Tipo", "Gravidade", "Qtd", "Obs", "Criado em", "Mensagem",
         ]
         st.dataframe(display_df[[c for c in cols if c in display_df.columns]], width="stretch", hide_index=True)
 
@@ -630,7 +631,7 @@ def render_weekly_error_import_panel(employees_df: pd.DataFrame, ws_iso: str):
     with st.expander("Importar XLSX de erros", expanded=False):
         st.caption(
             "Use a aba Importacao_Erros do modelo. Se employee_id estiver vazio, o app tenta identificar pelo nome; "
-            "se week_start vier vazio, usa a semana selecionada nesta tela."
+            "a semana é calculada automaticamente pela Data do ocorrido."
         )
         uploaded = st.file_uploader(
             "Arquivo XLSX",
