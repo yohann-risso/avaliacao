@@ -167,6 +167,8 @@ Campos principais:
 - `monitor_start_date`;
 - `leadership_start_date`;
 - `termination_date`;
+- `picking_operator_name`;
+- `bybox_operator_name`;
 - `is_monitor`;
 - `is_leadership`;
 - `active`;
@@ -209,6 +211,24 @@ Campos principais:
 - `created_at`.
 
 O salvamento usa upsert. Ao salvar de novo a mesma semana do mesmo funcionario, os campos sao atualizados.
+
+### Metricas externas de picking
+
+`picking_metrics.py` le o Supabase dos apps `picking-kaisan` e `picking-by-box-kaisan` por PostgreSQL. A connection string vem de `PICKING_DATABASE_URL`, equivalentes `PICKING_*`, secrets `[connections.picking].url`/`[connections.picking_supabase].url` ou, como fallback, do mesmo `APP_DATABASE_URL` da aplicacao.
+
+Fontes:
+
+- picking: `fn_eficiencia_por_operador_periodo(p_data_ini, p_data_fim, p_min_itens, p_cutoff_delta_seg)`;
+- by-box: `rpc_bybox_eficiencia_participantes_periodo(p_inicio, p_fim)`.
+
+O cruzamento usa `employees.picking_operator_name` e `employees.bybox_operator_name`; quando vazios, usa `employees.name`.
+
+Regra de consolidacao semanal:
+
+- `items_count` recebe a soma das pecas executadas nos dois processos;
+- se so houver produtividade de um processo, usa esse percentual;
+- se houver produtividade nos dois, calcula media ponderada pelas pecas de cada processo;
+- se nao houver execucao, os itens ficam `0` e a produtividade permanece manual.
 
 #### `weekly_errors`
 

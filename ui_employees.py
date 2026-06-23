@@ -94,6 +94,20 @@ def page_employees():
                 leadership_start_date = st.text_input("Coord./Sup. desde", placeholder="DD/MM/AAAA")
                 st.caption("Preencha a data quando marcar monitor ou coord./supervisão.")
 
+            p1, p2 = st.columns(2, gap="medium")
+            with p1:
+                picking_operator_name = st.text_input(
+                    "Operador Picking",
+                    placeholder="Vazio usa o Nome",
+                    help="Nome do operador no picking-kaisan/admin.",
+                )
+            with p2:
+                bybox_operator_name = st.text_input(
+                    "Operador By-Box",
+                    placeholder="Vazio usa o Nome",
+                    help="Nome do operador no picking-by-box-kaisan/admin.",
+                )
+
             submitted = st.form_submit_button("Cadastrar funcionário")
 
             if submitted:
@@ -131,6 +145,8 @@ def page_employees():
                             monitor_start_date=monitor_start_date,
                             leadership_start_date=leadership_start_date,
                             termination_date=termination_date,
+                            picking_operator_name=picking_operator_name,
+                            bybox_operator_name=bybox_operator_name,
                             created_by_user_id=admin_id,
                             created_by_username=admin_username,
                         )
@@ -176,6 +192,8 @@ def page_employees():
         show["Atualizado em"] = show["updated_at"].apply(datetime_iso_to_br)
         show["Anos empresa"] = show["hire_date"].apply(_years_in_company)
         show["Adicional tempo"] = show["Anos empresa"].apply(lambda years: brl(float(years * TENURE_BONUS_PER_YEAR)))
+        show["Operador Picking"] = show["picking_operator_name"].fillna("").astype(str).replace("", "-")
+        show["Operador By-Box"] = show["bybox_operator_name"].fillna("").astype(str).replace("", "-")
         show = show.rename(columns={"name": "Nome", "sector": "Setor", "role": "Função"})
 
         # ---------- Filtros ----------
@@ -275,7 +293,8 @@ def page_employees():
             filtered[[
                 "id", "Nome", "Setor", "Função", "Status", "Contratação", "Desativado em",
                 "Desligamento", "Anos empresa", "Adicional tempo", "Monitor", "Monitor desde",
-                "Coord./Supervisão", "Coord./Supervisão desde", "Criado por", "Atualizado por", "Atualizado em",
+                "Coord./Supervisão", "Coord./Supervisão desde", "Operador Picking", "Operador By-Box",
+                "Criado por", "Atualizado por", "Atualizado em",
             ]],
             width="stretch",
             hide_index=True
@@ -369,6 +388,22 @@ def page_employees():
                 )
                 st.caption("Atualize a data quando a função mudar.")
 
+            p1, p2 = st.columns(2, gap="medium")
+            with p1:
+                edit_picking_operator_name = st.text_input(
+                    "Operador Picking",
+                    value=str(edit_row.get("picking_operator_name", "") or ""),
+                    placeholder="Vazio usa o Nome",
+                    help="Nome do operador no picking-kaisan/admin.",
+                )
+            with p2:
+                edit_bybox_operator_name = st.text_input(
+                    "Operador By-Box",
+                    value=str(edit_row.get("bybox_operator_name", "") or ""),
+                    placeholder="Vazio usa o Nome",
+                    help="Nome do operador no picking-by-box-kaisan/admin.",
+                )
+
             save_edit = st.form_submit_button("Salvar alterações")
 
             if save_edit:
@@ -407,6 +442,8 @@ def page_employees():
                             monitor_start_date=edit_monitor_start_date,
                             leadership_start_date=edit_leadership_start_date,
                             termination_date=edit_termination_date,
+                            picking_operator_name=edit_picking_operator_name,
+                            bybox_operator_name=edit_bybox_operator_name,
                             updated_by_user_id=admin_id,
                             updated_by_username=admin_username,
                         )

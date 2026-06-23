@@ -57,6 +57,7 @@ from db import (
 from rules import suggest_taxa_erros_pct
 from ui_auth import current_evaluator_name, evaluator_options_for_current_user
 from weekly_error_import import load_weekly_error_import_file, prepare_weekly_error_import
+from picking_metrics import fetch_weekly_picking_metrics_for_employees
 
 
 # -----------------------------
@@ -174,6 +175,7 @@ def empty_weekly_payload(source: str | None = None) -> dict:
         "items_count": 0,
         "notes": "",
         "evaluator": "",
+        "picking_metric": None,
         "justs": {
             "assiduidade": "",
             "qualidade": "",
@@ -207,6 +209,56 @@ def weekly_payload_from_row(row: pd.Series, source: str | None = None) -> dict:
         }
     })
     return payload
+
+
+def picking_metric_has_productivity(metric: dict | None) -> bool:
+    if not metric:
+        return False
+    return metric.get("produtividade_pct") is not None
+
+
+def apply_picking_metric_to_payload(payload: dict, metric: dict | None, force: bool = False) -> dict:
+    out = dict(payload or empty_weekly_payload())
+    out["justs"] = dict(out.get("justs", {}))
+    out["picking_metric"] = metric
+
+    if not metric:
+        return out
+
+    should_apply = bool(force) or out.get("source") != "current"
+    if should_apply:
+        out["items_count"] = safe_int(metric.get("items_count", 0), 0)
+        if picking_metric_has_productivity(metric):
+            out["produtividade"] = safe_float(metric.get("produtividade_pct"), out.get("produtividade", 100))
+
+    return out
+
+
+def format_picking_metric_summary(metric: dict | None) -> str:
+    if not metric:
+        return ""
+
+    parts = [f"Total: {safe_int(metric.get('items_count', 0), 0)} peça(s)"]
+    picking_items = safe_int(metric.get("picking_items", 0), 0)
+    bybox_items = safe_int(metric.get("bybox_items", 0), 0)
+
+    if picking_items:
+        picking_pct = metric.get("picking_produtividade_pct")
+        pct = pct_br(picking_pct, 1) if picking_pct is not None else "-"
+        parts.append(f"Picking: {picking_items} peça(s) / {pct}")
+
+    if bybox_items:
+        bybox_pct = metric.get("bybox_produtividade_pct")
+        pct = pct_br(bybox_pct, 1) if bybox_pct is not None else "-"
+        parts.append(f"By-Box: {bybox_items} peça(s) / {pct}")
+
+    final_pct = metric.get("produtividade_pct")
+    if final_pct is not None:
+        parts.append(f"Prod/Efic ponderada: {pct_br(final_pct, 1)}")
+    else:
+        parts.append("Sem produtividade automática")
+
+    return " | ".join(parts)
 
 
 def build_default_payload(employee_id: int, ws_iso: str) -> dict:
@@ -860,6 +912,8 @@ def normalize_mass_eval_df(df: pd.DataFrame) -> pd.DataFrame:
     for col in ["Avaliador", "Notas", *MASS_JUST_COLS]:
         if col in out.columns:
             out[col] = out[col].fillna("").astype(str)
+    if "Métrica Picking" in out.columns:
+        out["Métrica Picking"] = out["Métrica Picking"].fillna("").astype(str)
 
     for idx in out.index:
         pcts = row_pcts_from_mass_row(out.loc[idx])
@@ -1017,6 +1071,32 @@ def process_pending_mass_operation(
             bump_mass_editor_version()
             st.rerun()
 
+        if kind == "apply_picking_metrics":
+            base_df = st.session_state.get("mass_eval_df", pd.DataFrame()).copy()
+            selected_mask = base_df["Selecionar"].fillna(False).astype(bool)
+            selected_ids = base_df.loc[selected_mask, "employee_id"].astype(int).tolist()
+            selected_emp = filtered_emp[filtered_emp["id"].astype(int).isin(selected_ids)].copy()
+
+            with st.spinner("Buscando métricas de picking no Supabase e bloqueando a tabela até concluir..."):
+                metrics, warnings = fetch_weekly_picking_metrics_for_employees(selected_emp, ws_iso)
+                for idx in base_df[selected_mask].index:
+                    employee_id = int(base_df.loc[idx, "employee_id"])
+                    metric = metrics.get(employee_id)
+                    if not metric:
+                        continue
+                    base_df.loc[idx, "Itens"] = safe_int(metric.get("items_count", 0), 0)
+                    if picking_metric_has_productivity(metric):
+                        base_df.loc[idx, "Prod/Efic (%)"] = safe_float(metric.get("produtividade_pct"), 100)
+                    base_df.loc[idx, "Métrica Picking"] = format_picking_metric_summary(metric) or "-"
+
+            st.session_state["mass_eval_df"] = normalize_mass_eval_df(
+                coerce_mass_evaluators(base_df, evaluator_options)
+            )
+            suffix = f" Avisos: {' | '.join(warnings)}" if warnings else ""
+            st.session_state["mass_feedback"] = "Métricas de picking aplicadas aos selecionados." + suffix
+            bump_mass_editor_version()
+            st.rerun()
+
         if kind == "reload_db":
             with st.spinner("Recarregando dados salvos no banco e bloqueando a tabela até concluir..."):
                 loaded_df = coerce_mass_evaluators(
@@ -1071,10 +1151,13 @@ def process_pending_mass_operation(
 def build_mass_eval_df(employees_df: pd.DataFrame, ws_iso: str) -> pd.DataFrame:
     rows = []
     payloads = build_default_payloads(employees_df["id"].tolist(), ws_iso)
+    picking_metrics, _warnings = fetch_weekly_picking_metrics_for_employees(employees_df, ws_iso)
 
     for _, emp_row in employees_df.iterrows():
         emp_id = int(emp_row["id"])
         payload = payloads.get(emp_id, empty_weekly_payload())
+        picking_metric = picking_metrics.get(emp_id)
+        payload = apply_picking_metric_to_payload(payload, picking_metric)
         source_label = {
             "current": "Banco",
             "previous": "Base anterior",
@@ -1117,6 +1200,7 @@ def build_mass_eval_df(employees_df: pd.DataFrame, ws_iso: str) -> pd.DataFrame:
             "Monitor": "SIM" if int(emp_row.get("is_monitor", 0)) == 1 else "NÃO",
             "Score": score,
             "Itens": defaults["items_count"],
+            "Métrica Picking": format_picking_metric_summary(picking_metric) or "-",
             "Assiduidade (%)": defaults["assiduidade_pct"],
             "Qualidade (%)": defaults["qualidade_pct"],
             "Taxa Erros (%)": defaults["taxa_erros_pct"],
@@ -1201,8 +1285,11 @@ def render_live_preview_sidebar(competencia, defaults):
 def build_week_priority_ranking_df(emp: pd.DataFrame, ws_iso: str, data_marker: str = "") -> pd.DataFrame:
     rows = []
     payloads = build_default_payloads(emp["id"].tolist(), ws_iso)
+    picking_metrics, _warnings = fetch_weekly_picking_metrics_for_employees(emp, ws_iso)
     for _, r in emp.iterrows():
-        payload = payloads.get(int(r["id"]), empty_weekly_payload())
+        employee_id = int(r["id"])
+        payload = payloads.get(employee_id, empty_weekly_payload())
+        payload = apply_picking_metric_to_payload(payload, picking_metrics.get(employee_id))
         score = score_from_pcts(payload)
         status, prioridade = exception_status(score, payload["taxa_erros"], 0)
 
@@ -1412,7 +1499,7 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
 
         base_df = coerce_mass_evaluators(st.session_state["mass_eval_df"].copy(), evaluator_options)
         a1, a2, a3, a4 = st.columns(4, gap="small")
-        a5, a6, a7 = st.columns(3, gap="small")
+        a5, a6, a7, a8 = st.columns(4, gap="small")
 
         if a1.button("Marcar todos", key="mass_select_all"):
             base_df["Selecionar"] = True
@@ -1456,6 +1543,13 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
         if a7.button("Recarregar", key="mass_reload_db"):
             queue_mass_operation("reload_db", ctx_key)
 
+        if a8.button("Atualizar Picking", key="mass_apply_picking"):
+            selected_mask = base_df["Selecionar"].fillna(False).astype(bool)
+            if not bool(selected_mask.any()):
+                st.warning("Selecione pelo menos 1 funcionário.")
+            else:
+                queue_mass_operation("apply_picking_metrics", ctx_key)
+
         m1, m2 = st.columns([1.3, 1], gap="medium")
         with m1:
             mass_template_model = st.selectbox(
@@ -1496,6 +1590,7 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
                 "Monitor",
                 "Score",
                 "Itens",
+                "Métrica Picking",
                 "Assiduidade (%)",
                 "Qualidade (%)",
                 "Taxa Erros (%)",
@@ -1521,6 +1616,7 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
                 "Monitor": st.column_config.TextColumn("Monitor", disabled=True),
                 "Score": st.column_config.NumberColumn("Score", disabled=True, format="%.1f"),
                 "Itens": st.column_config.NumberColumn("Itens", min_value=0, step=1),
+                "Métrica Picking": st.column_config.TextColumn("Métrica Picking", disabled=True, width="large"),
                 "Assiduidade (%)": st.column_config.NumberColumn("Assiduidade (%)", min_value=0, max_value=100, step=5, format="%d"),
                 "Qualidade (%)": st.column_config.NumberColumn("Qualidade (%)", min_value=0, max_value=100, step=5, format="%d"),
                 "Taxa Erros (%)": st.column_config.NumberColumn("Taxa de Erros (%)", min_value=0, max_value=100, step=5, format="%d"),
@@ -1750,9 +1846,16 @@ def page_weekly():
         selected_emp_label = st.selectbox("Funcionário", list(emp_label_to_id.keys()))
 
     employee_id = emp_label_to_id[selected_emp_label]
-    role = emp[emp["id"] == employee_id].iloc[0]["role"]
+    selected_emp_row = emp[emp["id"] == employee_id].iloc[0]
+    role = selected_emp_row["role"]
 
     payload = build_default_payload(employee_id, ws_iso)
+    picking_metrics, picking_metric_warnings = fetch_weekly_picking_metrics_for_employees(
+        pd.DataFrame([selected_emp_row]),
+        ws_iso,
+    )
+    picking_metric = picking_metrics.get(employee_id)
+    payload = apply_picking_metric_to_payload(payload, picking_metric)
 
     defaults = {
         "assiduidade": payload["assiduidade"],
@@ -1810,6 +1913,10 @@ def page_weekly():
     st.caption("Preencha por abas; a prévia financeira fica na barra lateral.")
     if existing_is_empty and has_previous_basis:
         st.info("Comentários e justificativas foram carregados da última avaliação deste funcionário como base.")
+    if picking_metric:
+        st.info(f"Métrica externa de picking: {format_picking_metric_summary(picking_metric)}")
+    if picking_metric_warnings:
+        st.warning("Não foi possível ler todas as métricas externas: " + " | ".join(picking_metric_warnings))
 
     render_rules_block()
     render_week_priority_ranking(emp, ws_iso, data_marker)
@@ -1842,7 +1949,7 @@ def page_weekly():
             "Passo 1",
         )
 
-        act1, act2, act3 = st.columns(3, gap="medium")
+        act1, act2, act3, act4 = st.columns(4, gap="medium")
         if act1.button("Copiar última avaliação", key="copy_prev_single"):
             prev = build_default_payload(employee_id, ws_iso)
             st.session_state["wk_items_count"] = prev["items_count"]
@@ -1888,6 +1995,18 @@ def page_weekly():
                 "comportamento": 100.0,
             })
             st.success("Padrão 100% aplicado.")
+            st.rerun()
+
+        if act4.button("Aplicar picking", key="apply_picking_single", disabled=not bool(picking_metric)):
+            updated_payload = apply_picking_metric_to_payload(payload, picking_metric, force=True)
+            st.session_state["wk_items_count"] = updated_payload["items_count"]
+            if picking_metric_has_productivity(picking_metric):
+                apply_weekly_pcts({
+                    **st.session_state.get("wk_pcts", {}),
+                    "produtividade": updated_payload["produtividade"],
+                })
+            request_weekly_entry_sync()
+            st.success("Métrica de picking aplicada.")
             st.rerun()
 
         colA, colB, colC = st.columns([1, 1, 1], gap="medium")

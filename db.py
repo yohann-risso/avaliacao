@@ -331,6 +331,8 @@ def init_postgres_db():
             monitor_start_date TEXT NOT NULL DEFAULT '',
             leadership_start_date TEXT NOT NULL DEFAULT '',
             termination_date TEXT NOT NULL DEFAULT '',
+            picking_operator_name TEXT NOT NULL DEFAULT '',
+            bybox_operator_name TEXT NOT NULL DEFAULT '',
             is_monitor INTEGER NOT NULL DEFAULT 0,
             is_leadership INTEGER NOT NULL DEFAULT 0,
             active INTEGER NOT NULL DEFAULT 1,
@@ -349,6 +351,8 @@ def init_postgres_db():
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS monitor_start_date TEXT NOT NULL DEFAULT '';")
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS leadership_start_date TEXT NOT NULL DEFAULT '';")
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS termination_date TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS picking_operator_name TEXT NOT NULL DEFAULT '';")
+        con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS bybox_operator_name TEXT NOT NULL DEFAULT '';")
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS is_leadership INTEGER NOT NULL DEFAULT 0;")
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS deactivated_at TEXT NOT NULL DEFAULT '';")
         con.execute("ALTER TABLE employees ADD COLUMN IF NOT EXISTS created_by_user_id INTEGER;")
@@ -533,6 +537,8 @@ def init_db():
             monitor_start_date TEXT NOT NULL DEFAULT '',
             leadership_start_date TEXT NOT NULL DEFAULT '',
             termination_date TEXT NOT NULL DEFAULT '',
+            picking_operator_name TEXT NOT NULL DEFAULT '',
+            bybox_operator_name TEXT NOT NULL DEFAULT '',
             is_monitor INTEGER NOT NULL DEFAULT 0,
             is_leadership INTEGER NOT NULL DEFAULT 0,
             active INTEGER NOT NULL DEFAULT 1,
@@ -545,6 +551,8 @@ def init_db():
         ensure_column(con, "employees", "monitor_start_date", "monitor_start_date TEXT NOT NULL DEFAULT ''")
         ensure_column(con, "employees", "leadership_start_date", "leadership_start_date TEXT NOT NULL DEFAULT ''")
         ensure_column(con, "employees", "termination_date", "termination_date TEXT NOT NULL DEFAULT ''")
+        ensure_column(con, "employees", "picking_operator_name", "picking_operator_name TEXT NOT NULL DEFAULT ''")
+        ensure_column(con, "employees", "bybox_operator_name", "bybox_operator_name TEXT NOT NULL DEFAULT ''")
         ensure_column(con, "employees", "is_leadership", "is_leadership INTEGER NOT NULL DEFAULT 0")
         ensure_column(con, "employees", "deactivated_at", "deactivated_at TEXT NOT NULL DEFAULT ''")
         ensure_column(con, "employees", "created_by_user_id", "created_by_user_id INTEGER")
@@ -958,6 +966,8 @@ def insert_employee(
     monitor_start_date: str = "",
     leadership_start_date: str = "",
     termination_date: str = "",
+    picking_operator_name: str = "",
+    bybox_operator_name: str = "",
     created_by_user_id: int | None = None,
     created_by_username: str = "",
 ):
@@ -977,10 +987,11 @@ def insert_employee(
         """
         INSERT INTO employees (
             name, sector, role, hire_date, monitor_start_date, leadership_start_date, termination_date,
+            picking_operator_name, bybox_operator_name,
             is_monitor, is_leadership, active, deactivated_at, created_at,
             created_by_user_id, created_by_username, updated_by_user_id, updated_by_username, updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             name.strip(),
@@ -990,6 +1001,8 @@ def insert_employee(
             monitor_start_date,
             leadership_start_date,
             termination_date,
+            str(picking_operator_name or "").strip(),
+            str(bybox_operator_name or "").strip(),
             is_monitor_value,
             is_leadership_value,
             active_value,
@@ -1053,6 +1066,7 @@ def list_employees(include_inactive: bool = True):
         return fetch_df("""
             SELECT
                 id, name, sector, role, hire_date, monitor_start_date, leadership_start_date, termination_date,
+                picking_operator_name, bybox_operator_name,
                 is_monitor, is_leadership, active, deactivated_at,
                 created_by_user_id, created_by_username, updated_by_user_id, updated_by_username, updated_at
             FROM employees
@@ -1065,6 +1079,7 @@ def list_active_employees():
     return fetch_df("""
         SELECT
             id, name, sector, role, hire_date, monitor_start_date, leadership_start_date, termination_date,
+            picking_operator_name, bybox_operator_name,
             is_monitor, is_leadership, active, deactivated_at,
             created_by_user_id, created_by_username, updated_by_user_id, updated_by_username, updated_at
         FROM employees
@@ -1409,6 +1424,8 @@ def update_employee(
     monitor_start_date: str = "",
     leadership_start_date: str = "",
     termination_date: str = "",
+    picking_operator_name: str = "",
+    bybox_operator_name: str = "",
     updated_by_user_id: int | None = None,
     updated_by_username: str = "",
 ):
@@ -1435,6 +1452,8 @@ def update_employee(
             monitor_start_date = ?,
             leadership_start_date = ?,
             termination_date = ?,
+            picking_operator_name = ?,
+            bybox_operator_name = ?,
             is_monitor = ?,
             is_leadership = ?,
             active = ?,
@@ -1452,6 +1471,8 @@ def update_employee(
             monitor_start_date,
             leadership_start_date,
             termination_date,
+            str(picking_operator_name or "").strip(),
+            str(bybox_operator_name or "").strip(),
             is_monitor_value,
             is_leadership_value,
             active_value,

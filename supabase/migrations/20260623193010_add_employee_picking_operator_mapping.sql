@@ -1,0 +1,2 @@
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS picking_operator_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS bybox_operator_name TEXT NOT NULL DEFAULT '';

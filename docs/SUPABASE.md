@@ -13,6 +13,15 @@ A connection string pode vir do ambiente ou dos secrets do Streamlit. A ordem de
 - `[connections.supabase].url`;
 - `[connections.postgres].url`.
 
+Para buscar automaticamente pecas e produtividade dos apps de picking, a aplicacao tenta usar o mesmo banco configurado em `APP_DATABASE_URL`. Se o Supabase de picking estiver separado, configure uma connection string somente leitura em uma destas chaves:
+
+- `PICKING_DATABASE_URL`;
+- `PICKING_SUPABASE_DB_URL`;
+- `PICKING_POSTGRES_URL`;
+- `[picking].url`;
+- `[connections.picking].url`;
+- `[connections.picking_supabase].url`.
+
 Exemplo em `.streamlit/secrets.toml`:
 
 ```toml
@@ -57,6 +66,8 @@ Tabelas principais:
 - `weekly_evaluations`;
 - `weekly_errors`;
 - `monitor_monthly_evaluations`.
+
+`employees` tambem possui os campos opcionais `picking_operator_name` e `bybox_operator_name`. Quando vazios, o nome do funcionario e usado para cruzar com os operadores dos apps de picking.
 
 O schema habilita Row Level Security nas tabelas e revoga acesso direto de `anon` e `authenticated`. A app acessa o banco pela connection string PostgreSQL do servidor.
 

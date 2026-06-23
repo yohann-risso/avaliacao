@@ -136,11 +136,26 @@ A avaliacao individual tem quatro abas:
 3. **Justificativas**: registra justificativas obrigatorias para todos os criterios.
 4. **Previa & Salvar**: mostra o pagamento estimado e grava a avaliacao apos confirmacao.
 
+Quando o Supabase de picking esta configurado, a aba **Entrada** carrega automaticamente:
+
+- `Itens/pecas`: total de pecas retiradas no periodo, somando picking e by-box;
+- `Produtividade / Eficiencia`: produtividade do processo executado ou media ponderada quando houve picking e by-box.
+
+A media ponderada da mais peso ao processo com maior volume de pecas:
+
+```text
+(produtividade_picking * pecas_picking + produtividade_bybox * pecas_bybox)
+/ (pecas_picking + pecas_bybox)
+```
+
+Se nao houver execucao nos processos de picking, os itens ficam `0` e a produtividade permanece editavel para avaliacao manual.
+
 Atalhos disponiveis:
 
 - copiar ultima avaliacao;
 - sugerir notas automaticamente;
 - aplicar padrao 100%;
+- aplicar picking;
 - calcular sugestao para taxa de erros com base no log.
 
 Para salvar, todas as cinco justificativas precisam estar preenchidas e o usuario precisa confirmar a revisao.
@@ -179,6 +194,7 @@ Acoes rapidas:
 - aplicar avaliador padrao;
 - copiar ultima base;
 - recarregar do banco;
+- atualizar picking;
 - aplicar justificativas padrao aos selecionados.
 
 Antes de salvar, a app valida percentuais, itens, avaliador e justificativas dos selecionados. O banco so e alterado ao clicar em **Salvar selecionados no banco**.
