@@ -138,13 +138,13 @@ def test_fetch_picking_process_metrics_uses_explicit_rpc_casts(monkeypatch):
     assert "p_min_itens => %s::integer" in calls[0][2]
 
 
-def test_fetch_bybox_process_metrics_uses_explicit_rpc_casts(monkeypatch):
+def test_fetch_bybox_process_metrics_uses_condensed_rpc_casts(monkeypatch):
     calls = []
 
     def fake_read_metric_sql(source_name, function_name, query, params):
         calls.append((source_name, function_name, query, params))
         return pd.DataFrame(
-            [{"operador": "Ana", "pecas": 40, "eficiencia": 0.75}]
+            [{"operador": "Ana", "pecas": 40, "eficiencia_media_ponderada": 0.75}]
         )
 
     monkeypatch.setattr(picking_metrics, "get_picking_database_url", lambda: "postgresql://example")
@@ -156,6 +156,8 @@ def test_fetch_bybox_process_metrics_uses_explicit_rpc_casts(monkeypatch):
     assert metrics["ana"].productivity_pct == 75
     assert "p_inicio => %s::timestamptz" in calls[0][2]
     assert "p_fim => %s::timestamptz" in calls[0][2]
+    assert "p_condensar_operador => %s::boolean" in calls[0][2]
+    assert calls[0][3] == ("2026-06-22T00:00:00-03:00", "2026-06-29T00:00:00-03:00", True)
 
 
 def test_picking_database_url_does_not_fall_back_to_app_database(monkeypatch):
@@ -196,11 +198,40 @@ def test_fetch_picking_process_metrics_can_use_supabase_rpc(monkeypatch):
     assert metrics["ana"].productivity_pct == 92
 
 
-def test_fetch_bybox_process_metrics_groups_supabase_rpc_rows(monkeypatch):
+def test_fetch_bybox_process_metrics_uses_condensed_supabase_rpc(monkeypatch):
     calls = []
 
     def fake_read_rpc(rpc_name, payload, select=None):
         calls.append((rpc_name, payload, select))
+        return pd.DataFrame(
+            [{"operador": "Ana", "pecas": 15, "eficiencia_media_ponderada": 0.8}]
+        )
+
+    monkeypatch.setattr(picking_metrics, "get_picking_database_url", lambda: "")
+    monkeypatch.setattr(picking_metrics, "_read_picking_rpc", fake_read_rpc)
+
+    metrics = picking_metrics.fetch_bybox_process_metrics("2026-06-22")
+
+    assert calls[0] == (
+        "rpc_bybox_eficiencia_participantes_periodo",
+        {
+            "p_inicio": "2026-06-22T00:00:00-03:00",
+            "p_fim": "2026-06-29T00:00:00-03:00",
+            "p_condensar_operador": True,
+        },
+        "operador,pecas,eficiencia_media_ponderada",
+    )
+    assert metrics["ana"].pieces == 15
+    assert metrics["ana"].productivity_pct == 80
+
+
+def test_fetch_bybox_process_metrics_falls_back_to_legacy_rpc(monkeypatch):
+    calls = []
+
+    def fake_read_rpc(rpc_name, payload, select=None):
+        calls.append((rpc_name, payload, select))
+        if payload.get("p_condensar_operador"):
+            raise RuntimeError("Could not find p_condensar_operador")
         return pd.DataFrame(
             [
                 {
@@ -223,7 +254,8 @@ def test_fetch_bybox_process_metrics_groups_supabase_rpc_rows(monkeypatch):
 
     metrics = picking_metrics.fetch_bybox_process_metrics("2026-06-22")
 
-    assert calls[0][2] == "operador,n_pecas_individual,tempo_ideal_individual_seg,tempo_real_seg"
+    assert len(calls) == 2
+    assert calls[1][2] == "operador,n_pecas_individual,tempo_ideal_individual_seg,tempo_real_seg"
     assert metrics["ana"].pieces == 15
     assert metrics["ana"].productivity_pct == 80
 

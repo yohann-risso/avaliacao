@@ -260,6 +260,19 @@ def _read_metric_rows(
     return _read_picking_rpc(rpc_name, rpc_payload, select=rpc_select)
 
 
+def _is_condensed_bybox_unavailable_error(exc: Exception) -> bool:
+    text = str(exc).casefold()
+    return (
+        "p_condensar_operador" in text
+        and (
+            "does not exist" in text
+            or "nao encontrada" in text
+            or "could not find" in text
+            or "pgrst202" in text
+        )
+    )
+
+
 def _to_float(value, default: float = 0.0) -> float:
     try:
         if value is None:
@@ -440,37 +453,66 @@ def fetch_picking_process_metrics(week_start_iso: str) -> dict[str, ProcessMetri
 
 def fetch_bybox_process_metrics(week_start_iso: str) -> dict[str, ProcessMetric]:
     dt_ini, _dt_fim, dt_exclusive = _week_dates(week_start_iso)
-    df = _read_metric_rows(
-        "By-Box",
-        "public.rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz)",
-        """
-        SELECT
-            operador,
-            COALESCE(SUM(n_pecas_individual), 0)::numeric AS pecas,
-            CASE
-                WHEN COALESCE(SUM(tempo_real_seg), 0) > 0
-                    THEN COALESCE(SUM(tempo_ideal_individual_seg), 0)::numeric
-                         / NULLIF(SUM(tempo_real_seg), 0)
-                ELSE NULL
-            END AS eficiencia
-        FROM public.rpc_bybox_eficiencia_participantes_periodo(
-            p_inicio => %s::timestamptz,
-            p_fim => %s::timestamptz
+    start_ts = f"{dt_ini}T00:00:00-03:00"
+    end_ts = f"{dt_exclusive}T00:00:00-03:00"
+    try:
+        df = _read_metric_rows(
+            "By-Box",
+            "public.rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz, boolean)",
+            """
+            SELECT operador, pecas, eficiencia_media_ponderada
+            FROM public.rpc_bybox_eficiencia_participantes_periodo(
+                p_inicio => %s::timestamptz,
+                p_fim => %s::timestamptz,
+                p_condensar_operador => %s::boolean
+            )
+            """,
+            (start_ts, end_ts, True),
+            "rpc_bybox_eficiencia_participantes_periodo",
+            {
+                "p_inicio": start_ts,
+                "p_fim": end_ts,
+                "p_condensar_operador": True,
+            },
+            "operador,pecas,eficiencia_media_ponderada",
         )
-        GROUP BY operador
-        """,
-        (f"{dt_ini}T00:00:00-03:00", f"{dt_exclusive}T00:00:00-03:00"),
-        "rpc_bybox_eficiencia_participantes_periodo",
-        {
-            "p_inicio": f"{dt_ini}T00:00:00-03:00",
-            "p_fim": f"{dt_exclusive}T00:00:00-03:00",
-        },
-        "operador,n_pecas_individual,tempo_ideal_individual_seg,tempo_real_seg",
-    )
+    except Exception as exc:
+        if not _is_condensed_bybox_unavailable_error(exc):
+            raise
+        df = _read_metric_rows(
+            "By-Box",
+            "public.rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz)",
+            """
+            SELECT
+                operador,
+                COALESCE(SUM(n_pecas_individual), 0)::numeric AS pecas,
+                CASE
+                    WHEN COALESCE(SUM(tempo_real_seg), 0) > 0
+                        THEN COALESCE(SUM(tempo_ideal_individual_seg), 0)::numeric
+                             / NULLIF(SUM(tempo_real_seg), 0)
+                    ELSE NULL
+                END AS eficiencia
+            FROM public.rpc_bybox_eficiencia_participantes_periodo(
+                p_inicio => %s::timestamptz,
+                p_fim => %s::timestamptz
+            )
+            GROUP BY operador
+            """,
+            (start_ts, end_ts),
+            "rpc_bybox_eficiencia_participantes_periodo",
+            {
+                "p_inicio": start_ts,
+                "p_fim": end_ts,
+            },
+            "operador,n_pecas_individual,tempo_ideal_individual_seg,tempo_real_seg",
+        )
     if df.empty:
         return {}
 
-    if "pecas" not in df.columns or "eficiencia" not in df.columns:
+    has_operator_summary = "pecas" in df.columns and (
+        "eficiencia" in df.columns or "eficiencia_media_ponderada" in df.columns
+    )
+    if not has_operator_summary:
         grouped: dict[str, dict[str, float]] = {}
         for _, row in df.iterrows():
             key = _operator_key(row.get("operador"))
@@ -488,12 +530,13 @@ def fetch_bybox_process_metrics(week_start_iso: str) -> dict[str, ProcessMetric]
         return metrics
 
     metrics: dict[str, ProcessMetric] = {}
+    efficiency_column = "eficiencia_media_ponderada" if "eficiencia_media_ponderada" in df.columns else "eficiencia"
     for _, row in df.iterrows():
         key = _operator_key(row.get("operador"))
         if not key:
             continue
         pieces = max(0.0, _to_float(row.get("pecas")))
-        efficiency = row.get("eficiencia")
+        efficiency = row.get(efficiency_column)
         productivity = None if efficiency is None else _clamp_pct(_to_float(efficiency) * 100.0)
         metrics[key] = ProcessMetric(pieces=pieces, productivity_pct=productivity)
     return metrics

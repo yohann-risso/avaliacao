@@ -39,7 +39,7 @@ PICKING_SUPABASE_KEY = "SUA_SUPABASE_ANON_OU_SERVICE_ROLE_KEY"
 
 Use `.streamlit/secrets.toml.example` como modelo. Nao commite o arquivo real de secrets.
 
-As metricas externas usam funcoes RPC do projeto de picking. A chamada de picking espera `fn_eficiencia_por_operador_periodo(date, date, integer, integer)` e a chamada by-box espera `rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz)`. Se essas funcoes nao existirem no banco configurado, a avaliacao mostra um aviso e nao transforma a falha em itens `0`.
+As metricas externas usam funcoes RPC do projeto de picking. A chamada de picking espera `fn_eficiencia_por_operador_periodo(date, date, integer, integer)`. A chamada by-box usa preferencialmente a sobrecarga condensada `rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz, boolean)` com `p_condensar_operador = true`; se ela nao existir, cai para a RPC antiga `rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz)`. Se essas funcoes nao existirem no banco configurado, a avaliacao mostra um aviso e nao transforma a falha em itens `0`.
 
 ## Execucao local
 
