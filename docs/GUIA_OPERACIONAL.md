@@ -25,7 +25,7 @@ python scripts/configure_supabase.py
 python -m streamlit run app.py
 ```
 
-No Streamlit Community Cloud, cadastre a chave `APP_DATABASE_URL` em **App settings > Secrets**. O arquivo `.streamlit/secrets.toml.example` serve como modelo.
+No Streamlit Community Cloud, cadastre a chave `APP_DATABASE_URL` em **App settings > Secrets**. Para preencher automaticamente os dados de picking, cadastre tambem `PICKING_SUPABASE_URL` e `PICKING_SUPABASE_KEY` apontando para o projeto `picking-kaisan`. O arquivo `.streamlit/secrets.toml.example` serve como modelo.
 
 ## Primeiro acesso e login
 

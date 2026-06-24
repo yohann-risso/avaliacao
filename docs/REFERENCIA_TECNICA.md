@@ -214,7 +214,7 @@ O salvamento usa upsert. Ao salvar de novo a mesma semana do mesmo funcionario, 
 
 ### Metricas externas de picking
 
-`picking_metrics.py` le o Supabase dos apps `picking-kaisan` e `picking-by-box-kaisan` por PostgreSQL. A connection string vem de `PICKING_DATABASE_URL`, equivalentes `PICKING_*`, secrets `[connections.picking].url`/`[connections.picking_supabase].url` ou, como fallback, do mesmo `APP_DATABASE_URL` da aplicacao.
+`picking_metrics.py` le o Supabase dos apps `picking-kaisan` e `picking-by-box-kaisan` no projeto `kinpwzuobsmfkjefnrdc`. Como as RPCs ficam em outro banco, a fonte precisa ser configurada explicitamente por `PICKING_SUPABASE_URL` + `PICKING_SUPABASE_KEY` ou por uma connection string PostgreSQL em `PICKING_DATABASE_URL`/equivalentes. O modulo nao usa `APP_DATABASE_URL` como fallback para picking.
 
 Fontes chamadas com casts explicitos de tipo:
 

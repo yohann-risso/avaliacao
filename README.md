@@ -41,7 +41,7 @@ APP_DATABASE_URL = "postgresql://postgres.PROJECT_REF:SUA_SENHA@POOLER_HOST:5432
 
 Também são aceitas `DATABASE_URL`, `SUPABASE_DB_URL`, `[database].url`, `[connections.supabase].url` e `[connections.postgres].url`.
 
-Para preencher automaticamente peças e produtividade a partir dos apps de picking, configure o mesmo banco de picking em `PICKING_DATABASE_URL` quando ele não for o próprio `APP_DATABASE_URL`.
+Para preencher automaticamente peças e produtividade a partir dos apps de picking, configure a fonte externa do projeto `picking-kaisan` (`kinpwzuobsmfkjefnrdc`) em chaves próprias. Use `PICKING_SUPABASE_URL` + `PICKING_SUPABASE_KEY` ou uma connection string PostgreSQL em `PICKING_DATABASE_URL`. O app não usa `APP_DATABASE_URL` como fallback para essas RPCs, porque elas ficam em outro banco.
 
 Para configurar localmente sem expor a senha no historico do terminal, rode `python scripts/configure_supabase.py` e cole a connection string quando solicitado. O script valida a conexao, garante o schema remoto e grava `.streamlit/secrets.toml`, que ja e ignorado pelo Git.
 

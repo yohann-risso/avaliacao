@@ -13,7 +13,14 @@ A connection string pode vir do ambiente ou dos secrets do Streamlit. A ordem de
 - `[connections.supabase].url`;
 - `[connections.postgres].url`.
 
-Para buscar automaticamente pecas e produtividade dos apps de picking, a aplicacao tenta usar o mesmo banco configurado em `APP_DATABASE_URL`. Se o Supabase de picking estiver separado, configure uma connection string somente leitura em uma destas chaves:
+Para buscar automaticamente pecas e produtividade dos apps de picking, configure explicitamente a fonte externa do projeto `picking-kaisan` (`kinpwzuobsmfkjefnrdc`). Essas RPCs ficam em outro banco, entao a aplicacao nao usa `APP_DATABASE_URL` como fallback.
+
+Opcao recomendada, usando a API do Supabase:
+
+- `PICKING_SUPABASE_URL`;
+- `PICKING_SUPABASE_KEY`.
+
+Alternativamente, use uma connection string PostgreSQL somente leitura em uma destas chaves:
 
 - `PICKING_DATABASE_URL`;
 - `PICKING_SUPABASE_DB_URL`;
@@ -26,6 +33,8 @@ Exemplo em `.streamlit/secrets.toml`:
 
 ```toml
 APP_DATABASE_URL = "postgresql://postgres.PROJECT_REF:SENHA@POOLER_HOST:5432/postgres?sslmode=require"
+PICKING_SUPABASE_URL = "https://kinpwzuobsmfkjefnrdc.supabase.co"
+PICKING_SUPABASE_KEY = "SUA_SUPABASE_ANON_OU_SERVICE_ROLE_KEY"
 ```
 
 Use `.streamlit/secrets.toml.example` como modelo. Nao commite o arquivo real de secrets.

@@ -1,21 +1,35 @@
 from __future__ import annotations
 
 import os
+import json
 import math
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal
+from urllib import error as url_error
+from urllib import request as url_request
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import pandas as pd
 
-from db import get_database_url, is_sqlite_test_backend, normalize_week_start_iso
+from db import is_sqlite_test_backend, normalize_week_start_iso
 
 
 PICKING_DATABASE_URL_ENV_KEYS = (
     "PICKING_DATABASE_URL",
     "PICKING_SUPABASE_DB_URL",
     "PICKING_POSTGRES_URL",
+)
+
+PICKING_SUPABASE_URL_ENV_KEYS = (
+    "PICKING_SUPABASE_URL",
+    "PICKING_SUPABASE_PROJECT_URL",
+)
+
+PICKING_SUPABASE_KEY_ENV_KEYS = (
+    "PICKING_SUPABASE_KEY",
+    "PICKING_SUPABASE_ANON_KEY",
+    "PICKING_SUPABASE_SERVICE_ROLE_KEY",
 )
 
 
@@ -30,6 +44,13 @@ def _database_url_with_ssl(url: str) -> str:
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     query.setdefault("sslmode", "require")
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _normalize_supabase_url(url: str) -> str:
+    value = str(url or "").strip().rstrip("/")
+    if value and not value.lower().startswith(("http://", "https://")):
+        raise RuntimeError("PICKING_SUPABASE_URL deve comecar com https://.")
+    return value
 
 
 def _secret_value(path: tuple[str, ...]) -> str:
@@ -66,7 +87,66 @@ def get_picking_database_url() -> str:
         if value:
             return value
 
-    return get_database_url()
+    return ""
+
+
+def get_picking_supabase_api_config() -> tuple[str, str]:
+    if is_sqlite_test_backend():
+        return "", ""
+
+    api_url = ""
+    api_key = ""
+    for key in PICKING_SUPABASE_URL_ENV_KEYS:
+        value = os.environ.get(key)
+        if value:
+            api_url = str(value).strip()
+            break
+    for key in PICKING_SUPABASE_KEY_ENV_KEYS:
+        value = os.environ.get(key)
+        if value:
+            api_key = str(value).strip()
+            break
+
+    url_secret_paths = (
+        ("PICKING_SUPABASE_URL",),
+        ("PICKING_SUPABASE_PROJECT_URL",),
+        ("picking", "supabase_url"),
+        ("picking", "project_url"),
+        ("connections", "picking", "supabase_url"),
+        ("connections", "picking_supabase", "supabase_url"),
+    )
+    key_secret_paths = (
+        ("PICKING_SUPABASE_KEY",),
+        ("PICKING_SUPABASE_ANON_KEY",),
+        ("PICKING_SUPABASE_SERVICE_ROLE_KEY",),
+        ("picking", "supabase_key"),
+        ("picking", "anon_key"),
+        ("picking", "service_role_key"),
+        ("connections", "picking", "supabase_key"),
+        ("connections", "picking_supabase", "supabase_key"),
+    )
+    if not api_url:
+        for path in url_secret_paths:
+            value = _secret_value(path)
+            if value:
+                api_url = value
+                break
+    if not api_key:
+        for path in key_secret_paths:
+            value = _secret_value(path)
+            if value:
+                api_key = value
+                break
+
+    return _normalize_supabase_url(api_url), api_key
+
+
+def _picking_source_not_configured_error() -> RuntimeError:
+    return RuntimeError(
+        "Fonte de picking nao configurada. Como as RPCs ficam em outro banco, configure "
+        "PICKING_DATABASE_URL ou PICKING_SUPABASE_URL + PICKING_SUPABASE_KEY apontando "
+        "para o projeto picking-kaisan."
+    )
 
 
 def _connect_picking_postgres():
@@ -97,6 +177,48 @@ def _read_picking_sql(query: str, params: tuple = ()) -> pd.DataFrame:
         return pd.DataFrame(cur.fetchall(), columns=columns)
 
 
+def _read_picking_rpc(function_name: str, payload: dict, select: str | None = None) -> pd.DataFrame:
+    api_url, api_key = get_picking_supabase_api_config()
+    if not api_url or not api_key:
+        raise _picking_source_not_configured_error()
+
+    body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+    query = urlencode({"select": select}) if select else ""
+    endpoint = f"{api_url}/rest/v1/rpc/{function_name}"
+    if query:
+        endpoint = f"{endpoint}?{query}"
+    req = url_request.Request(
+        endpoint,
+        data=body,
+        method="POST",
+        headers={
+            "apikey": api_key,
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with url_request.urlopen(req, timeout=30) as res:
+            raw = res.read().decode("utf-8")
+    except url_error.HTTPError as exc:
+        details = exc.read().decode("utf-8", errors="replace").strip()
+        raise RuntimeError(
+            f"RPC {function_name} falhou via Supabase API ({exc.code}): {details or exc.reason}"
+        ) from exc
+    except url_error.URLError as exc:
+        raise RuntimeError(f"Nao foi possivel conectar ao Supabase de picking: {exc.reason}") from exc
+
+    if not raw.strip():
+        return pd.DataFrame()
+    data = json.loads(raw)
+    if isinstance(data, list):
+        return pd.DataFrame(data)
+    if isinstance(data, dict):
+        return pd.DataFrame([data])
+    return pd.DataFrame()
+
+
 def _is_undefined_function_error(exc: Exception) -> bool:
     sqlstate = str(getattr(exc, "sqlstate", "") or "")
     if sqlstate == "42883":
@@ -115,6 +237,20 @@ def _read_metric_sql(source_name: str, function_name: str, query: str, params: t
                 "de picking."
             ) from exc
         raise
+
+
+def _read_metric_rows(
+    source_name: str,
+    function_signature: str,
+    sql_query: str,
+    sql_params: tuple,
+    rpc_name: str,
+    rpc_payload: dict,
+    rpc_select: str | None = None,
+) -> pd.DataFrame:
+    if get_picking_database_url():
+        return _read_metric_sql(source_name, function_signature, sql_query, sql_params)
+    return _read_picking_rpc(rpc_name, rpc_payload, select=rpc_select)
 
 
 def _to_float(value, default: float = 0.0) -> float:
@@ -200,7 +336,7 @@ def combine_process_metrics(
 
 def fetch_picking_process_metrics(week_start_iso: str) -> dict[str, ProcessMetric]:
     dt_ini, dt_fim, _dt_exclusive = _week_dates(week_start_iso)
-    df = _read_metric_sql(
+    df = _read_metric_rows(
         "Picking",
         "public.fn_eficiencia_por_operador_periodo(date, date, integer, integer)",
         """
@@ -213,6 +349,14 @@ def fetch_picking_process_metrics(week_start_iso: str) -> dict[str, ProcessMetri
         )
         """,
         (dt_ini, dt_fim, 1, 300),
+        "fn_eficiencia_por_operador_periodo",
+        {
+            "p_data_ini": dt_ini,
+            "p_data_fim": dt_fim,
+            "p_min_itens": 1,
+            "p_cutoff_delta_seg": 300,
+        },
+        "operador,itens,eficiencia",
     )
     metrics: dict[str, ProcessMetric] = {}
     for _, row in df.iterrows():
@@ -227,7 +371,7 @@ def fetch_picking_process_metrics(week_start_iso: str) -> dict[str, ProcessMetri
 
 def fetch_bybox_process_metrics(week_start_iso: str) -> dict[str, ProcessMetric]:
     dt_ini, _dt_fim, dt_exclusive = _week_dates(week_start_iso)
-    df = _read_metric_sql(
+    df = _read_metric_rows(
         "By-Box",
         "public.rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz)",
         """
@@ -247,7 +391,33 @@ def fetch_bybox_process_metrics(week_start_iso: str) -> dict[str, ProcessMetric]
         GROUP BY operador
         """,
         (f"{dt_ini}T00:00:00-03:00", f"{dt_exclusive}T00:00:00-03:00"),
+        "rpc_bybox_eficiencia_participantes_periodo",
+        {
+            "p_inicio": f"{dt_ini}T00:00:00-03:00",
+            "p_fim": f"{dt_exclusive}T00:00:00-03:00",
+        },
+        "operador,n_pecas_individual,tempo_ideal_individual_seg,tempo_real_seg",
     )
+    if df.empty:
+        return {}
+
+    if "pecas" not in df.columns or "eficiencia" not in df.columns:
+        grouped: dict[str, dict[str, float]] = {}
+        for _, row in df.iterrows():
+            key = _operator_key(row.get("operador"))
+            if not key:
+                continue
+            current = grouped.setdefault(key, {"pecas": 0.0, "ideal": 0.0, "real": 0.0})
+            current["pecas"] += max(0.0, _to_float(row.get("n_pecas_individual")))
+            current["ideal"] += max(0.0, _to_float(row.get("tempo_ideal_individual_seg")))
+            current["real"] += max(0.0, _to_float(row.get("tempo_real_seg")))
+        metrics = {}
+        for key, totals in grouped.items():
+            efficiency = totals["ideal"] / totals["real"] if totals["real"] > 0 else None
+            productivity = None if efficiency is None else _clamp_pct(efficiency * 100.0)
+            metrics[key] = ProcessMetric(pieces=totals["pecas"], productivity_pct=productivity)
+        return metrics
+
     metrics: dict[str, ProcessMetric] = {}
     for _, row in df.iterrows():
         key = _operator_key(row.get("operador"))

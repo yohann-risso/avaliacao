@@ -62,6 +62,7 @@ def test_fetch_picking_process_metrics_uses_explicit_rpc_casts(monkeypatch):
         calls.append((source_name, function_name, query, params))
         return pd.DataFrame([{"operador": "Ana", "itens": 50, "eficiencia": 0.8}])
 
+    monkeypatch.setattr(picking_metrics, "get_picking_database_url", lambda: "postgresql://example")
     monkeypatch.setattr(picking_metrics, "_read_metric_sql", fake_read_metric_sql)
 
     metrics = picking_metrics.fetch_picking_process_metrics("2026-06-22")
@@ -81,6 +82,7 @@ def test_fetch_bybox_process_metrics_uses_explicit_rpc_casts(monkeypatch):
             [{"operador": "Ana", "pecas": 40, "eficiencia": 0.75}]
         )
 
+    monkeypatch.setattr(picking_metrics, "get_picking_database_url", lambda: "postgresql://example")
     monkeypatch.setattr(picking_metrics, "_read_metric_sql", fake_read_metric_sql)
 
     metrics = picking_metrics.fetch_bybox_process_metrics("2026-06-22")
@@ -89,6 +91,76 @@ def test_fetch_bybox_process_metrics_uses_explicit_rpc_casts(monkeypatch):
     assert metrics["ana"].productivity_pct == 75
     assert "p_inicio => %s::timestamptz" in calls[0][2]
     assert "p_fim => %s::timestamptz" in calls[0][2]
+
+
+def test_picking_database_url_does_not_fall_back_to_app_database(monkeypatch):
+    monkeypatch.delenv("PICKING_DATABASE_URL", raising=False)
+    monkeypatch.delenv("PICKING_SUPABASE_DB_URL", raising=False)
+    monkeypatch.delenv("PICKING_POSTGRES_URL", raising=False)
+    monkeypatch.setattr(picking_metrics, "is_sqlite_test_backend", lambda: False)
+    monkeypatch.setattr(picking_metrics, "_secret_value", lambda _path: "")
+
+    assert picking_metrics.get_picking_database_url() == ""
+
+
+def test_fetch_picking_process_metrics_can_use_supabase_rpc(monkeypatch):
+    calls = []
+
+    def fake_read_rpc(rpc_name, payload, select=None):
+        calls.append((rpc_name, payload, select))
+        return pd.DataFrame([{"operador": "Ana", "itens": 25, "eficiencia": 0.92}])
+
+    monkeypatch.setattr(picking_metrics, "get_picking_database_url", lambda: "")
+    monkeypatch.setattr(picking_metrics, "_read_picking_rpc", fake_read_rpc)
+
+    metrics = picking_metrics.fetch_picking_process_metrics("2026-06-22")
+
+    assert calls == [
+        (
+            "fn_eficiencia_por_operador_periodo",
+            {
+                "p_data_ini": "2026-06-22",
+                "p_data_fim": "2026-06-28",
+                "p_min_itens": 1,
+                "p_cutoff_delta_seg": 300,
+            },
+            "operador,itens,eficiencia",
+        )
+    ]
+    assert metrics["ana"].pieces == 25
+    assert metrics["ana"].productivity_pct == 92
+
+
+def test_fetch_bybox_process_metrics_groups_supabase_rpc_rows(monkeypatch):
+    calls = []
+
+    def fake_read_rpc(rpc_name, payload, select=None):
+        calls.append((rpc_name, payload, select))
+        return pd.DataFrame(
+            [
+                {
+                    "operador": "Ana",
+                    "n_pecas_individual": 10,
+                    "tempo_ideal_individual_seg": 90,
+                    "tempo_real_seg": 100,
+                },
+                {
+                    "operador": "Ana",
+                    "n_pecas_individual": 5,
+                    "tempo_ideal_individual_seg": 30,
+                    "tempo_real_seg": 50,
+                },
+            ]
+        )
+
+    monkeypatch.setattr(picking_metrics, "get_picking_database_url", lambda: "")
+    monkeypatch.setattr(picking_metrics, "_read_picking_rpc", fake_read_rpc)
+
+    metrics = picking_metrics.fetch_bybox_process_metrics("2026-06-22")
+
+    assert calls[0][2] == "operador,n_pecas_individual,tempo_ideal_individual_seg,tempo_real_seg"
+    assert metrics["ana"].pieces == 15
+    assert metrics["ana"].productivity_pct == 80
 
 
 def test_weekly_metrics_do_not_write_zero_when_a_source_failed(monkeypatch):
