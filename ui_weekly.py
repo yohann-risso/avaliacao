@@ -1960,10 +1960,22 @@ def page_weekly():
 
     selected_emp_row = emp[emp["id"] == employee_id].iloc[0]
     role = selected_emp_row["role"]
+    current_eval_key = f"{employee_id}|{ws_iso}"
+    metric_cache_key = weekly_metric_cache_key(selected_emp_row, ws_iso)
+
+    reload_metric_clicked = st.button(
+        "Recarregar dados da RPC",
+        key=f"reload_picking_rpc_{current_eval_key}",
+        help="Limpa o cache desta avaliação e consulta novamente as métricas externas de Picking/By-Box.",
+    )
+    if reload_metric_clicked:
+        clear_single_weekly_context_cache(metric_cache_key)
 
     payload = build_default_payload(employee_id, ws_iso)
     with st.spinner("Buscando métricas de picking para esta avaliação..."):
         picking_metric, picking_metric_warnings = get_single_weekly_picking_metric(selected_emp_row, ws_iso)
+    if reload_metric_clicked and not picking_metric_warnings:
+        st.success("Dados da RPC recarregados.")
     payload = apply_picking_metric_to_payload(payload, picking_metric)
 
     defaults = {
@@ -1978,8 +1990,6 @@ def page_weekly():
     evaluator_default = current_evaluator_name() or payload["evaluator"]
     just_defaults = payload["justs"]
     
-    current_eval_key = f"{employee_id}|{ws_iso}"
-
     if st.session_state.get("wk_eval_key") != current_eval_key:
         st.session_state["wk_eval_key"] = current_eval_key
 

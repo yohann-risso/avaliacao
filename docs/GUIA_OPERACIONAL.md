@@ -156,6 +156,7 @@ Se a consulta externa funcionar e nao houver execucao nos processos de picking, 
 
 Atalhos disponiveis:
 
+- recarregar dados da RPC de picking/by-box;
 - copiar ultima avaliacao;
 - sugerir notas automaticamente;
 - aplicar padrao 100%;
