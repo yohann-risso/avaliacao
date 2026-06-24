@@ -223,6 +223,8 @@ Fontes chamadas com casts explicitos de tipo:
 
 O cruzamento usa `employees.picking_operator_name` e `employees.bybox_operator_name`; quando vazios, usa `employees.name`. A resolucao tenta match exato primeiro e, se nao houver, aplica similaridade conservadora de nomes, removendo acentos/particulas e aceitando abreviacoes com dois ou mais componentes em comum. Caso haja empate/ambiguidade, nao escolhe automaticamente.
 
+Na avaliacao individual, a leitura externa fica em cache de sessao por funcionario, semana e mapeamentos de operador. A RPC e carregada ao iniciar a avaliacao e nao e refeita ao alternar entre as etapas.
+
 Regra de consolidacao semanal:
 
 - `items_count` recebe a soma das pecas executadas nos dois processos;

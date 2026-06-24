@@ -136,6 +136,8 @@ A avaliacao individual tem quatro abas:
 3. **Justificativas**: registra justificativas obrigatorias para todos os criterios.
 4. **Previa & Salvar**: mostra o pagamento estimado e grava a avaliacao apos confirmacao.
 
+Antes das abas, selecione a data de referencia e o colaborador e clique em **Iniciar avaliacao**. Periodo e colaborador ficam travados ate salvar ou alterar a selecao. O botao **Proxima Semana** move a data de referencia para a sexta-feira da semana seguinte.
+
 Quando o Supabase de picking esta configurado, a aba **Entrada** carrega automaticamente:
 
 - `Itens/pecas`: total de pecas retiradas no periodo, somando picking e by-box;

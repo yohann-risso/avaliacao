@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from constants import WEEKLY_CRITERIA, SEVERITIES, DEFAULT_ERROR_TYPES
 from theme import (
@@ -259,6 +259,61 @@ def format_picking_metric_summary(metric: dict | None) -> str:
         parts.append("Sem produtividade automática")
 
     return " | ".join(parts)
+
+
+def next_week_friday(reference_date: date) -> date:
+    return monday_of(reference_date) + timedelta(days=11)
+
+
+def weekly_eval_context_key(employee_id: int, ws_iso: str) -> str:
+    return f"{int(employee_id)}|{ws_iso}"
+
+
+def weekly_metric_cache_key(employee_row: pd.Series, ws_iso: str) -> str:
+    parts = [
+        str(int(employee_row.get("id"))),
+        str(ws_iso),
+        normalize_text(employee_row.get("name", "")),
+        normalize_text(employee_row.get("picking_operator_name", "")),
+        normalize_text(employee_row.get("bybox_operator_name", "")),
+    ]
+    return "|".join(parts)
+
+
+def clear_single_weekly_eval_context() -> None:
+    for key in [
+        "weekly_eval_context",
+        "wk_eval_key",
+        "wk_picking_metric",
+        "wk_picking_metric_warnings",
+    ]:
+        st.session_state.pop(key, None)
+
+
+def clear_single_weekly_context_cache(cache_key: str) -> None:
+    cache = st.session_state.get("wk_single_picking_metric_cache")
+    if isinstance(cache, dict):
+        cache.pop(cache_key, None)
+
+
+def get_single_weekly_picking_metric(
+    employee_row: pd.Series,
+    ws_iso: str,
+) -> tuple[dict | None, list[str]]:
+    cache_key = weekly_metric_cache_key(employee_row, ws_iso)
+    cache = st.session_state.setdefault("wk_single_picking_metric_cache", {})
+    cached = cache.get(cache_key)
+    if cached is None:
+        metrics, warnings = fetch_weekly_picking_metrics_for_employees(
+            pd.DataFrame([employee_row]),
+            ws_iso,
+        )
+        cached = {
+            "metric": metrics.get(int(employee_row.get("id"))),
+            "warnings": list(warnings),
+        }
+        cache[cache_key] = cached
+    return cached.get("metric"), list(cached.get("warnings") or [])
 
 
 def build_default_payload(employee_id: int, ws_iso: str) -> dict:
@@ -1314,16 +1369,21 @@ def build_week_priority_ranking_df(emp: pd.DataFrame, ws_iso: str, data_marker: 
 
 
 def render_week_priority_ranking(emp: pd.DataFrame, ws_iso: str, data_marker: str = ""):
-    df = build_week_priority_ranking_df(emp, ws_iso, data_marker)
-    if df.empty:
-        return
-
-    df_display = df.copy()
-    for col in ["Score", "Taxa de Erros", "Prod/Efic"]:
-        df_display[col] = df_display[col].map(lambda v: pct_br(v, 1))
-
     with st.expander("Prioridade de avaliação da semana"):
         st.caption("Ordenação por exceção: analisar primeiro quem foge mais do padrão.")
+        load_key = f"week_priority_loaded_{ws_iso}"
+        if st.button("Carregar ranking", key=f"load_week_priority_{ws_iso}"):
+            st.session_state[load_key] = True
+        if not st.session_state.get(load_key):
+            return
+
+        df = build_week_priority_ranking_df(emp, ws_iso, data_marker)
+        if df.empty:
+            return
+
+        df_display = df.copy()
+        for col in ["Score", "Taxa de Erros", "Prod/Efic"]:
+            df_display[col] = df_display[col].map(lambda v: pct_br(v, 1))
         st.dataframe(df_display, width="stretch", hide_index=True)
 
 
@@ -1833,28 +1893,77 @@ def page_weekly():
         for _, r in emp.iterrows()
     }
 
-    top1, top2 = st.columns([2, 1], gap="large")
-    with top2:
-        d = st.date_input("Data de referência", value=date.today(), format="DD/MM/YYYY")
-        ws = monday_of(d)
-        ws_iso = ws.isoformat()
-        st.markdown(f"**Semana:** {week_label(ws)}")
-        competencia = competencia_from_week_start(ws)
-        st.caption(f"Competência: {month_label_to_br(competencia)}")
+    if "weekly_ref_date" not in st.session_state:
+        st.session_state["weekly_ref_date"] = date.today()
 
-    with top1:
-        selected_emp_label = st.selectbox("Funcionário", list(emp_label_to_id.keys()))
+    active_context = st.session_state.get("weekly_eval_context")
+    top1, top2, top3 = st.columns([2, 1, 1], gap="large")
 
-    employee_id = emp_label_to_id[selected_emp_label]
+    if active_context:
+        employee_id = int(active_context["employee_id"])
+        ws_iso = str(active_context["week_start_iso"])
+        d = datetime.strptime(str(active_context["reference_date"]), "%Y-%m-%d").date()
+        ws = datetime.strptime(ws_iso, "%Y-%m-%d").date()
+        selected_emp_label = str(active_context["employee_label"])
+        if emp[emp["id"] == employee_id].empty:
+            clear_single_weekly_eval_context()
+            st.warning("O colaborador da avaliação iniciada não está mais ativo. Selecione novamente.")
+            st.rerun()
+
+        with top1:
+            st.text_input("Funcionário", value=selected_emp_label, disabled=True)
+        with top2:
+            st.text_input("Data de referência", value=d.strftime("%d/%m/%Y"), disabled=True)
+            st.markdown(f"**Semana:** {week_label(ws)}")
+            competencia = competencia_from_week_start(ws)
+            st.caption(f"Competência: {month_label_to_br(competencia)}")
+        with top3:
+            st.caption("Avaliação iniciada")
+            if st.button("Alterar seleção", key="weekly_change_context"):
+                clear_single_weekly_eval_context()
+                st.rerun()
+    else:
+        with top2:
+            d = st.date_input("Data de referência", format="DD/MM/YYYY", key="weekly_ref_date")
+            ws = monday_of(d)
+            ws_iso = ws.isoformat()
+            st.markdown(f"**Semana:** {week_label(ws)}")
+            competencia = competencia_from_week_start(ws)
+            st.caption(f"Competência: {month_label_to_br(competencia)}")
+            if st.button("Próxima Semana", key="weekly_next_week"):
+                st.session_state["weekly_ref_date"] = next_week_friday(d)
+                st.rerun()
+
+        with top1:
+            selected_emp_label = st.selectbox("Funcionário", list(emp_label_to_id.keys()), key="weekly_employee_select")
+        employee_id = emp_label_to_id[selected_emp_label]
+
+        with top3:
+            st.caption("Preparação")
+            if st.button("Iniciar avaliação", key="weekly_start_eval", type="primary"):
+                context_key = weekly_eval_context_key(employee_id, ws_iso)
+                selected_row = emp[emp["id"] == employee_id].iloc[0]
+                cache_key = weekly_metric_cache_key(selected_row, ws_iso)
+                clear_single_weekly_context_cache(cache_key)
+                st.session_state["weekly_eval_context"] = {
+                    "employee_id": employee_id,
+                    "employee_label": selected_emp_label,
+                    "week_start_iso": ws_iso,
+                    "reference_date": d.isoformat(),
+                    "context_key": context_key,
+                }
+                st.session_state["weekly_step"] = "1) Entrada"
+                st.rerun()
+
+        st.info("Selecione o período e o colaborador, depois inicie a avaliação.")
+        return
+
     selected_emp_row = emp[emp["id"] == employee_id].iloc[0]
     role = selected_emp_row["role"]
 
     payload = build_default_payload(employee_id, ws_iso)
-    picking_metrics, picking_metric_warnings = fetch_weekly_picking_metrics_for_employees(
-        pd.DataFrame([selected_emp_row]),
-        ws_iso,
-    )
-    picking_metric = picking_metrics.get(employee_id)
+    with st.spinner("Buscando métricas de picking para esta avaliação..."):
+        picking_metric, picking_metric_warnings = get_single_weekly_picking_metric(selected_emp_row, ws_iso)
     payload = apply_picking_metric_to_payload(payload, picking_metric)
 
     defaults = {
@@ -2383,4 +2492,5 @@ def page_weekly():
                     f"{selected_emp_label} | semana {week_label(ws)} | total estimado {brl(total)}.",
                     "success",
                 )
+                clear_single_weekly_eval_context()
                 st.rerun()
