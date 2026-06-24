@@ -216,10 +216,10 @@ O salvamento usa upsert. Ao salvar de novo a mesma semana do mesmo funcionario, 
 
 `picking_metrics.py` le o Supabase dos apps `picking-kaisan` e `picking-by-box-kaisan` por PostgreSQL. A connection string vem de `PICKING_DATABASE_URL`, equivalentes `PICKING_*`, secrets `[connections.picking].url`/`[connections.picking_supabase].url` ou, como fallback, do mesmo `APP_DATABASE_URL` da aplicacao.
 
-Fontes:
+Fontes chamadas com casts explicitos de tipo:
 
-- picking: `fn_eficiencia_por_operador_periodo(p_data_ini, p_data_fim, p_min_itens, p_cutoff_delta_seg)`;
-- by-box: `rpc_bybox_eficiencia_participantes_periodo(p_inicio, p_fim)`.
+- picking: `fn_eficiencia_por_operador_periodo(p_data_ini date, p_data_fim date, p_min_itens integer, p_cutoff_delta_seg integer)`;
+- by-box: `rpc_bybox_eficiencia_participantes_periodo(p_inicio timestamptz, p_fim timestamptz)`.
 
 O cruzamento usa `employees.picking_operator_name` e `employees.bybox_operator_name`; quando vazios, usa `employees.name`.
 
@@ -228,7 +228,8 @@ Regra de consolidacao semanal:
 - `items_count` recebe a soma das pecas executadas nos dois processos;
 - se so houver produtividade de um processo, usa esse percentual;
 - se houver produtividade nos dois, calcula media ponderada pelas pecas de cada processo;
-- se nao houver execucao, os itens ficam `0` e a produtividade permanece manual.
+- se as fontes responderem e nao houver execucao, os itens ficam `0` e a produtividade permanece manual;
+- se uma fonte falhar, ausencia de linha nessa fonte nao vira `0` automatico.
 
 #### `weekly_errors`
 

@@ -70,16 +70,16 @@ def get_picking_database_url() -> str:
 
 
 def _connect_picking_postgres():
-    try:
-        import psycopg
-    except ImportError as exc:
-        raise RuntimeError("Instale psycopg para ler metricas de picking.") from exc
-
     url = get_picking_database_url()
     if not url:
         raise RuntimeError("Banco de picking nao configurado.")
     if not url.lower().startswith(("postgres://", "postgresql://")):
         raise RuntimeError("PICKING_DATABASE_URL deve ser uma connection string PostgreSQL/Supabase.")
+
+    try:
+        import psycopg
+    except ImportError as exc:
+        raise RuntimeError("Instale psycopg para ler metricas de picking.") from exc
 
     return psycopg.connect(
         _database_url_with_ssl(url),
@@ -95,6 +95,26 @@ def _read_picking_sql(query: str, params: tuple = ()) -> pd.DataFrame:
             return pd.DataFrame()
         columns = [str(getattr(desc, "name", None) or desc[0]) for desc in cur.description]
         return pd.DataFrame(cur.fetchall(), columns=columns)
+
+
+def _is_undefined_function_error(exc: Exception) -> bool:
+    sqlstate = str(getattr(exc, "sqlstate", "") or "")
+    if sqlstate == "42883":
+        return True
+    return "function " in str(exc).lower() and " does not exist" in str(exc).lower()
+
+
+def _read_metric_sql(source_name: str, function_name: str, query: str, params: tuple = ()) -> pd.DataFrame:
+    try:
+        return _read_picking_sql(query, params)
+    except Exception as exc:
+        if _is_undefined_function_error(exc):
+            raise RuntimeError(
+                f"RPC {function_name} nao encontrada com a assinatura esperada no banco configurado "
+                f"para {source_name}. Verifique PICKING_DATABASE_URL ou aplique a funcao no Supabase "
+                "de picking."
+            ) from exc
+        raise
 
 
 def _to_float(value, default: float = 0.0) -> float:
@@ -180,10 +200,17 @@ def combine_process_metrics(
 
 def fetch_picking_process_metrics(week_start_iso: str) -> dict[str, ProcessMetric]:
     dt_ini, dt_fim, _dt_exclusive = _week_dates(week_start_iso)
-    df = _read_picking_sql(
+    df = _read_metric_sql(
+        "Picking",
+        "public.fn_eficiencia_por_operador_periodo(date, date, integer, integer)",
         """
         SELECT operador, itens, eficiencia
-        FROM public.fn_eficiencia_por_operador_periodo(%s, %s, %s, %s)
+        FROM public.fn_eficiencia_por_operador_periodo(
+            p_data_ini => %s::date,
+            p_data_fim => %s::date,
+            p_min_itens => %s::integer,
+            p_cutoff_delta_seg => %s::integer
+        )
         """,
         (dt_ini, dt_fim, 1, 300),
     )
@@ -200,7 +227,9 @@ def fetch_picking_process_metrics(week_start_iso: str) -> dict[str, ProcessMetri
 
 def fetch_bybox_process_metrics(week_start_iso: str) -> dict[str, ProcessMetric]:
     dt_ini, _dt_fim, dt_exclusive = _week_dates(week_start_iso)
-    df = _read_picking_sql(
+    df = _read_metric_sql(
+        "By-Box",
+        "public.rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz)",
         """
         SELECT
             operador,
@@ -211,7 +240,10 @@ def fetch_bybox_process_metrics(week_start_iso: str) -> dict[str, ProcessMetric]
                          / NULLIF(SUM(tempo_real_seg), 0)
                 ELSE NULL
             END AS eficiencia
-        FROM public.rpc_bybox_eficiencia_participantes_periodo(%s, %s)
+        FROM public.rpc_bybox_eficiencia_participantes_periodo(
+            p_inicio => %s::timestamptz,
+            p_fim => %s::timestamptz
+        )
         GROUP BY operador
         """,
         (f"{dt_ini}T00:00:00-03:00", f"{dt_exclusive}T00:00:00-03:00"),
@@ -242,26 +274,39 @@ def fetch_weekly_picking_metrics_for_employees(
         return {}, []
 
     warnings: list[str] = []
+    picking_ok = True
+    bybox_ok = True
     try:
         picking_metrics = fetch_picking_process_metrics(week_start_iso)
     except Exception as exc:
+        picking_ok = False
         picking_metrics = {}
         warnings.append(f"Picking: {exc}")
 
     try:
         bybox_metrics = fetch_bybox_process_metrics(week_start_iso)
     except Exception as exc:
+        bybox_ok = False
         bybox_metrics = {}
         warnings.append(f"By-Box: {exc}")
+
+    if not picking_ok and not bybox_ok:
+        return {}, warnings
 
     combined: dict[int, dict] = {}
     for _, row in employees_df.iterrows():
         employee_id = int(row.get("id"))
         picking_key = _operator_key(employee_operator_name(row, "picking_operator_name"))
         bybox_key = _operator_key(employee_operator_name(row, "bybox_operator_name"))
+        picking_metric = picking_metrics.get(picking_key)
+        bybox_metric = bybox_metrics.get(bybox_key)
+
+        if (not picking_ok or not bybox_ok) and picking_metric is None and bybox_metric is None:
+            continue
+
         metric = combine_process_metrics(
-            picking=picking_metrics.get(picking_key),
-            bybox=bybox_metrics.get(bybox_key),
+            picking=picking_metric,
+            bybox=bybox_metric,
         )
         metric["employee_id"] = employee_id
         metric["picking_operator_name"] = employee_operator_name(row, "picking_operator_name")

@@ -30,6 +30,8 @@ APP_DATABASE_URL = "postgresql://postgres.PROJECT_REF:SENHA@POOLER_HOST:5432/pos
 
 Use `.streamlit/secrets.toml.example` como modelo. Nao commite o arquivo real de secrets.
 
+As metricas externas usam funcoes RPC do projeto de picking. A chamada de picking espera `fn_eficiencia_por_operador_periodo(date, date, integer, integer)` e a chamada by-box espera `rpc_bybox_eficiencia_participantes_periodo(timestamptz, timestamptz)`. Se essas funcoes nao existirem no banco configurado, a avaliacao mostra um aviso e nao transforma a falha em itens `0`.
+
 ## Execucao local
 
 ```powershell

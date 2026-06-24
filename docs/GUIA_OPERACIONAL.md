@@ -148,7 +148,7 @@ A media ponderada da mais peso ao processo com maior volume de pecas:
 / (pecas_picking + pecas_bybox)
 ```
 
-Se nao houver execucao nos processos de picking, os itens ficam `0` e a produtividade permanece editavel para avaliacao manual.
+Se a consulta externa funcionar e nao houver execucao nos processos de picking, os itens ficam `0` e a produtividade permanece editavel para avaliacao manual. Se a fonte externa falhar, a avaliacao nao assume `0` automaticamente e mostra um aviso de configuracao/consulta.
 
 Atalhos disponiveis:
 
