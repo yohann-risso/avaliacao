@@ -221,7 +221,7 @@ Fontes chamadas com casts explicitos de tipo:
 - picking: `fn_eficiencia_por_operador_periodo(p_data_ini date, p_data_fim date, p_min_itens integer, p_cutoff_delta_seg integer)`;
 - by-box: `rpc_bybox_eficiencia_participantes_periodo(p_inicio timestamptz, p_fim timestamptz)`.
 
-O cruzamento usa `employees.picking_operator_name` e `employees.bybox_operator_name`; quando vazios, usa `employees.name`.
+O cruzamento usa `employees.picking_operator_name` e `employees.bybox_operator_name`; quando vazios, usa `employees.name`. A resolucao tenta match exato primeiro e, se nao houver, aplica similaridade conservadora de nomes, removendo acentos/particulas e aceitando abreviacoes com dois ou mais componentes em comum. Caso haja empate/ambiguidade, nao escolhe automaticamente.
 
 Regra de consolidacao semanal:
 

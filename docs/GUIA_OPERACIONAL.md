@@ -141,6 +141,8 @@ Quando o Supabase de picking esta configurado, a aba **Entrada** carrega automat
 - `Itens/pecas`: total de pecas retiradas no periodo, somando picking e by-box;
 - `Produtividade / Eficiencia`: produtividade do processo executado ou media ponderada quando houve picking e by-box.
 
+O cruzamento de nomes tenta primeiro o mapeamento/exato. Se nao encontrar, usa similaridade conservadora, por exemplo `Andreza Bonan Rosa` na avaliacao pode encontrar `Andreza Bonan` no picking.
+
 A media ponderada da mais peso ao processo com maior volume de pecas:
 
 ```text

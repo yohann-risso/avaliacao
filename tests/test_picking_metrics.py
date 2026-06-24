@@ -1,7 +1,12 @@
 import pandas as pd
 
 import picking_metrics
-from picking_metrics import ProcessMetric, combine_process_metrics, employee_operator_name
+from picking_metrics import (
+    ProcessMetric,
+    combine_process_metrics,
+    employee_operator_name,
+    metric_for_operator_name,
+)
 
 
 def test_combine_process_metrics_weights_productivity_by_pieces():
@@ -53,6 +58,66 @@ def test_employee_operator_name_uses_mapping_or_employee_name():
 
     assert employee_operator_name(row, "picking_operator_name") == "Ana Silva"
     assert employee_operator_name(row, "bybox_operator_name") == "Ana S."
+
+
+def test_metric_for_operator_name_matches_shorter_picking_name():
+    metrics = {
+        "andreza bonan": ProcessMetric(pieces=120, productivity_pct=91),
+    }
+
+    metric = metric_for_operator_name(metrics, "Andreza Bonan Rosa")
+
+    assert metric == ProcessMetric(pieces=120, productivity_pct=91)
+
+
+def test_metric_for_operator_name_ignores_accents_and_particles():
+    metrics = {
+        "joao silva": ProcessMetric(pieces=80, productivity_pct=75),
+    }
+
+    metric = metric_for_operator_name(metrics, "João da Silva Souza")
+
+    assert metric == ProcessMetric(pieces=80, productivity_pct=75)
+
+
+def test_metric_for_operator_name_does_not_pick_ambiguous_partial_name():
+    metrics = {
+        "ana silva": ProcessMetric(pieces=50, productivity_pct=80),
+        "ana souza": ProcessMetric(pieces=60, productivity_pct=85),
+    }
+
+    assert metric_for_operator_name(metrics, "Ana") is None
+
+
+def test_weekly_metrics_match_employee_full_name_to_short_operator(monkeypatch):
+    employees = pd.DataFrame(
+        [
+            {
+                "id": 1,
+                "name": "Andreza Bonan Rosa",
+                "picking_operator_name": "",
+                "bybox_operator_name": "",
+            }
+        ]
+    )
+
+    monkeypatch.setattr(picking_metrics, "is_sqlite_test_backend", lambda: False)
+    monkeypatch.setattr(
+        picking_metrics,
+        "fetch_picking_process_metrics",
+        lambda _week: {"andreza bonan": ProcessMetric(pieces=120, productivity_pct=91)},
+    )
+    monkeypatch.setattr(picking_metrics, "fetch_bybox_process_metrics", lambda _week: {})
+
+    metrics, warnings = picking_metrics.fetch_weekly_picking_metrics_for_employees(
+        employees,
+        "2026-06-22",
+    )
+
+    assert warnings == []
+    assert metrics[1]["items_count"] == 120
+    assert metrics[1]["produtividade_pct"] == 91
+    assert metrics[1]["source_label"] == "Picking"
 
 
 def test_fetch_picking_process_metrics_uses_explicit_rpc_casts(monkeypatch):

@@ -3,8 +3,11 @@ from __future__ import annotations
 import os
 import json
 import math
+import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from difflib import SequenceMatcher
 from decimal import Decimal
 from urllib import error as url_error
 from urllib import request as url_request
@@ -31,6 +34,10 @@ PICKING_SUPABASE_KEY_ENV_KEYS = (
     "PICKING_SUPABASE_ANON_KEY",
     "PICKING_SUPABASE_SERVICE_ROLE_KEY",
 )
+
+NAME_PARTICLES = {"da", "das", "de", "do", "dos", "e"}
+MIN_OPERATOR_NAME_SIMILARITY = 0.86
+MIN_OPERATOR_NAME_SCORE_GAP = 0.04
 
 
 @dataclass(frozen=True)
@@ -272,6 +279,68 @@ def _operator_key(value: str) -> str:
     return str(value or "").replace("\r", "").replace("\n", "").strip().casefold()
 
 
+def _name_words(value: str) -> list[str]:
+    text = unicodedata.normalize("NFKD", str(value or ""))
+    text = "".join(ch for ch in text if not unicodedata.combining(ch))
+    text = re.sub(r"[^0-9A-Za-z]+", " ", text.casefold())
+    return [word for word in text.split() if word and word not in NAME_PARTICLES]
+
+
+def _name_match_key(value: str) -> str:
+    return " ".join(_name_words(value))
+
+
+def _operator_name_similarity(left: str, right: str) -> float:
+    left_key = _name_match_key(left)
+    right_key = _name_match_key(right)
+    if not left_key or not right_key:
+        return 0.0
+    if left_key == right_key:
+        return 1.0
+
+    left_words = left_key.split()
+    right_words = right_key.split()
+    left_set = set(left_words)
+    right_set = set(right_words)
+    common = left_set & right_set
+
+    if len(common) >= 2 and (left_set <= right_set or right_set <= left_set):
+        return 0.99
+    if left_words[0] == right_words[0] and len(common) >= 2:
+        return max(0.92, SequenceMatcher(None, left_key, right_key).ratio())
+
+    token_score = len(common) / max(len(left_set), len(right_set), 1)
+    text_score = SequenceMatcher(None, left_key, right_key).ratio()
+    return max(token_score, text_score)
+
+
+def metric_for_operator_name(
+    metrics: dict[str, ProcessMetric],
+    operator_name: str,
+) -> ProcessMetric | None:
+    exact = metrics.get(_operator_key(operator_name))
+    if exact is not None:
+        return exact
+
+    best_key = ""
+    best_score = 0.0
+    second_score = 0.0
+    for candidate_key in metrics:
+        score = _operator_name_similarity(operator_name, candidate_key)
+        if score > best_score:
+            second_score = best_score
+            best_score = score
+            best_key = candidate_key
+        elif score > second_score:
+            second_score = score
+
+    if best_score < MIN_OPERATOR_NAME_SIMILARITY:
+        return None
+    if second_score and (best_score - second_score) < MIN_OPERATOR_NAME_SCORE_GAP:
+        return None
+    return metrics.get(best_key)
+
+
 def _clamp_pct(value: float | None) -> float | None:
     if value is None:
         return None
@@ -468,8 +537,8 @@ def fetch_weekly_picking_metrics_for_employees(
         employee_id = int(row.get("id"))
         picking_key = _operator_key(employee_operator_name(row, "picking_operator_name"))
         bybox_key = _operator_key(employee_operator_name(row, "bybox_operator_name"))
-        picking_metric = picking_metrics.get(picking_key)
-        bybox_metric = bybox_metrics.get(bybox_key)
+        picking_metric = metric_for_operator_name(picking_metrics, picking_key)
+        bybox_metric = metric_for_operator_name(bybox_metrics, bybox_key)
 
         if (not picking_ok or not bybox_ok) and picking_metric is None and bybox_metric is None:
             continue
