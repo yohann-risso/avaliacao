@@ -34,9 +34,30 @@ def _role_label(value: str) -> str:
 
 def _is_truthy(value) -> bool:
     try:
+        if pd.isna(value):
+            return False
+    except (TypeError, ValueError):
+        pass
+    try:
         return int(value or 0) == 1
     except (TypeError, ValueError):
         return False
+
+
+def _optional_int(value) -> int | None:
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
+
+    if value in (None, "", 0, "0"):
+        return None
+
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _evaluator_label(row: pd.Series) -> str:
@@ -47,6 +68,33 @@ def _evaluator_label(row: pd.Series) -> str:
     return f"{name} ({suffix})" if suffix else name
 
 
+def _append_evaluator_option(
+    options: list[str],
+    mapping: dict[str, int | None],
+    label: str,
+    employee_id: int | None,
+) -> str:
+    if employee_id is None:
+        return EMPTY_EVALUATOR_LABEL
+
+    label = str(label or "").strip() or f"Funcionário #{employee_id}"
+    if label in mapping and mapping[label] == employee_id:
+        return label
+
+    if label in mapping:
+        base_label = f"{label} · ID {employee_id}"
+        label = base_label
+        counter = 2
+        while label in mapping and mapping[label] != employee_id:
+            label = f"{base_label} ({counter})"
+            counter += 1
+
+    if label not in mapping:
+        options.append(label)
+    mapping[label] = employee_id
+    return label
+
+
 def _evaluator_options(evaluators: pd.DataFrame) -> tuple[list[str], dict[str, int | None]]:
     options = [EMPTY_EVALUATOR_LABEL]
     mapping: dict[str, int | None] = {EMPTY_EVALUATOR_LABEL: None}
@@ -55,10 +103,10 @@ def _evaluator_options(evaluators: pd.DataFrame) -> tuple[list[str], dict[str, i
 
     for _, row in evaluators.iterrows():
         label = _evaluator_label(row)
-        if not label:
+        employee_id = _optional_int(row.get("id"))
+        if not label or employee_id is None:
             continue
-        options.append(label)
-        mapping[label] = int(row["id"])
+        _append_evaluator_option(options, mapping, label, employee_id)
     return options, mapping
 
 
@@ -67,18 +115,58 @@ def _option_index(options: list[str], current: str) -> int:
 
 
 def _label_for_evaluator_id(mapping: dict[str, int | None], evaluator_id) -> str:
-    if pd.isna(evaluator_id) or evaluator_id in (None, "", 0, "0"):
-        return EMPTY_EVALUATOR_LABEL
-
-    try:
-        wanted_id = int(evaluator_id)
-    except (TypeError, ValueError):
+    wanted_id = _optional_int(evaluator_id)
+    if wanted_id is None:
         return EMPTY_EVALUATOR_LABEL
 
     for label, mapped_id in mapping.items():
         if mapped_id == wanted_id:
             return label
     return EMPTY_EVALUATOR_LABEL
+
+
+def _edit_evaluator_options(
+    evaluator_options: list[str],
+    evaluator_map: dict[str, int | None],
+    selected_row: pd.Series,
+) -> tuple[list[str], dict[str, int | None], str, bool]:
+    options = list(evaluator_options)
+    mapping = dict(evaluator_map)
+
+    current_id = _optional_int(selected_row.get("evaluator_employee_id"))
+    current_label = _label_for_evaluator_id(mapping, current_id)
+    if current_id is None or current_label != EMPTY_EVALUATOR_LABEL:
+        return options, mapping, current_label, False
+
+    linked_row = pd.Series({
+        "name": selected_row.get("evaluator_name", ""),
+        "sector": selected_row.get("evaluator_sector", ""),
+        "role": selected_row.get("evaluator_role", ""),
+    })
+    label = _evaluator_label(linked_row)
+    if label:
+        label = f"{label} · vínculo atual"
+    else:
+        label = f"Funcionário #{current_id} · vínculo atual"
+
+    current_label = _append_evaluator_option(options, mapping, label, current_id)
+    return options, mapping, current_label, True
+
+
+def _current_evaluator_warning(selected_row: pd.Series) -> str:
+    current_id = _optional_int(selected_row.get("evaluator_employee_id"))
+    name = str(selected_row.get("evaluator_name", "") or "").strip() or f"ID {current_id}"
+    reasons = []
+    if not _is_truthy(selected_row.get("evaluator_active")):
+        reasons.append("não está ativo")
+    if not _is_truthy(selected_row.get("evaluator_is_leadership")):
+        reasons.append("não está marcado como coordenação/supervisão")
+
+    reason_text = " e ".join(reasons) if reasons else "não está na lista de avaliadores ativos"
+    return (
+        f"O vínculo atual ({name}) existe no banco, mas {reason_text}. "
+        "Para salvar este usuário com vínculo válido, ajuste o cadastro do funcionário ou selecione outro avaliador."
+    )
 
 
 def page_users():
@@ -223,7 +311,14 @@ def page_users():
         selected_id = user_labels[selected_label]
         selected_row = users[users["id"].astype(int) == int(selected_id)].iloc[0]
         current_role_label = ROLE_LABELS.get(str(selected_row.get("role", "admin")).strip().lower(), "Avaliador")
-        current_evaluator_label = _label_for_evaluator_id(evaluator_map, selected_row.get("evaluator_employee_id"))
+        edit_evaluator_options, edit_evaluator_map, current_evaluator_label, current_evaluator_needs_fix = _edit_evaluator_options(
+            evaluator_options,
+            evaluator_map,
+            selected_row,
+        )
+
+        if current_evaluator_needs_fix:
+            st.warning(_current_evaluator_warning(selected_row))
 
         with st.form(f"form_edit_login_user_{selected_id}"):
             col1, col2, col3, col4 = st.columns([1.2, 1, 1.5, 0.7], gap="medium")
@@ -239,8 +334,8 @@ def page_users():
             with col3:
                 edit_evaluator_label = st.selectbox(
                     "Avaliador vinculado*",
-                    evaluator_options,
-                    index=_option_index(evaluator_options, current_evaluator_label),
+                    edit_evaluator_options,
+                    index=_option_index(edit_evaluator_options, current_evaluator_label),
                     help="Obrigatório para o perfil Avaliador; opcional para Administrador.",
                 )
             with col4:
@@ -257,7 +352,7 @@ def page_users():
 
         if submitted_update:
             role = ROLE_OPTIONS[edit_role_label]
-            evaluator_employee_id = evaluator_map.get(edit_evaluator_label)
+            evaluator_employee_id = edit_evaluator_map.get(edit_evaluator_label)
 
             if not edit_username.strip():
                 st.error("Preencha o **Usuário**.")

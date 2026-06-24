@@ -764,6 +764,7 @@ def list_login_users() -> pd.DataFrame:
             COALESCE(e.sector, '') AS evaluator_sector,
             COALESCE(e.role, '') AS evaluator_role,
             COALESCE(e.active, 0) AS evaluator_active,
+            COALESCE(e.is_leadership, 0) AS evaluator_is_leadership,
             u.last_login_at,
             u.created_at,
             u.updated_at
