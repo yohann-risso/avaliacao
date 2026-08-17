@@ -5,6 +5,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+django_app/staticfiles/
+django_app/*.sqlite3
 
 .streamlit/secrets.toml
 .streamlit/secrets.*.toml

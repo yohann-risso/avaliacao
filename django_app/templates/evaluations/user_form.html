@@ -1,0 +1,2 @@
+{% extends 'evaluations/base.html' %}
+{% block content %}<p class="eyebrow">ACESSO</p><h1>{% if legacy %}Editar{% else %}Novo{% endif %} usuário</h1><p class="subtle">Deixe a senha em branco para preservá-la ao editar.</p><form method="post" class="form">{% csrf_token %}{{ form.as_p }}<div class="form-actions"><button>Salvar</button><a href="{% url 'user_list' %}">Cancelar</a></div></form>{% endblock %}

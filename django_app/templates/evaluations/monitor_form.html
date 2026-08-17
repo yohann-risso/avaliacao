@@ -1,0 +1,2 @@
+{% extends 'evaluations/base.html' %}
+{% block content %}<p class="eyebrow">ETAPA 4</p><h1>{% if evaluation %}Editar{% else %}Nova{% endif %} monitoria</h1><p class="subtle">Teto mensal de monitoria: R$ {{ total|floatformat:2 }}</p><form method="post" class="form form-grid">{% csrf_token %}{{ form.as_p }}<div class="form-actions"><button>Salvar monitoria</button><a href="{% url 'monitor_list' %}">Cancelar</a></div></form>{% endblock %}
