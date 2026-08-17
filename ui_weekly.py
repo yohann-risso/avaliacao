@@ -1,3 +1,5 @@
+import hashlib
+
 import streamlit as st
 import pandas as pd
 from datetime import date, datetime, timedelta
@@ -57,6 +59,15 @@ from db import (
 from rules import suggest_taxa_erros_pct
 from ui_auth import current_evaluator_name, evaluator_options_for_current_user
 from weekly_error_import import load_weekly_error_import_file, prepare_weekly_error_import
+from weekly_eval_excel import (
+    WEEKLY_JUSTIFICATION_MODELS,
+    WEEKLY_JUSTIFICATION_MODEL_OPTIONS,
+    build_criterion_template_justifications,
+    build_weekly_eval_workbook_bytes,
+    load_weekly_eval_import_file,
+    prepare_weekly_eval_import,
+    template_tier_from_pct,
+)
 from picking_metrics import fetch_weekly_picking_metrics_for_employees
 
 
@@ -491,40 +502,6 @@ def build_template_justifications() -> dict:
     return build_criterion_template_justifications()
 
 
-WEEKLY_JUSTIFICATION_MODELS = {
-    "assiduidade": {
-        "excelente": "Manteve assiduidade plena no período, sem faltas, atrasos ou saídas antecipadas que impactassem a rotina operacional.",
-        "adequado": "Manteve assiduidade adequada, com eventual ajuste pontual controlado e sem impacto relevante para a operação.",
-        "atencao": "Apresentou ocorrência pontual de assiduidade no período, exigindo acompanhamento para evitar reincidência.",
-        "critico": "Teve desvios relevantes de assiduidade, com impacto na rotina e necessidade de alinhamento imediato.",
-    },
-    "qualidade": {
-        "excelente": "Executou as atividades com padrão consistente de qualidade, sem retrabalho ou divergência relevante registrada.",
-        "adequado": "Manteve qualidade adequada na execução, com pequenos ajustes pontuais dentro do esperado para a operação.",
-        "atencao": "Apresentou desvios de qualidade que exigiram correção e reforço de atenção aos procedimentos.",
-        "critico": "A qualidade ficou abaixo do esperado, com necessidade de acompanhamento próximo e plano de correção.",
-    },
-    "taxa_erros": {
-        "excelente": "Não houve registro relevante no log de erros, mantendo desempenho compatível com o padrão esperado.",
-        "adequado": "Houve ocorrência pontual controlada, sem impacto significativo no resultado geral da semana.",
-        "atencao": "A taxa de erros foi impactada por ocorrências no período, exigindo reforço em conferência e prevenção de reincidência.",
-        "critico": "Os erros registrados impactaram significativamente o resultado, exigindo ação corretiva imediata e acompanhamento.",
-    },
-    "produtividade": {
-        "excelente": "Manteve ritmo produtivo consistente, com boa aderência ao fluxo e ao volume esperado para a semana.",
-        "adequado": "Apresentou produtividade adequada, com oscilação pontual sem prejuízo relevante ao fluxo operacional.",
-        "atencao": "A produtividade apresentou queda ou instabilidade no período, exigindo acompanhamento dos gargalos e rotina de execução.",
-        "critico": "A produtividade ficou abaixo do esperado, com impacto no fluxo e necessidade de plano de recuperação.",
-    },
-    "comportamento": {
-        "excelente": "Manteve postura adequada, colaborativa e aderente aos procedimentos e à disciplina operacional.",
-        "adequado": "Apresentou comportamento geral adequado, com pontos pontuais de ajuste sem impacto relevante na equipe.",
-        "atencao": "Foram observados pontos de comportamento que exigem alinhamento, reforço de disciplina e melhoria de comunicação.",
-        "critico": "O comportamento no período exigiu intervenção, com necessidade de alinhamento imediato e acompanhamento próximo.",
-    },
-}
-
-
 def evaluator_options_from_df(df: pd.DataFrame) -> list[str]:
     if df is None or df.empty or "name" not in df.columns:
         return []
@@ -547,36 +524,6 @@ def selected_evaluator_index(options: list[str], default: str = "") -> int:
         return options.index(cleaned)
 
     return 0
-
-
-def template_tier_from_pct(pct: float) -> str:
-    p = safe_float(pct, 100)
-    if p >= 91:
-        return "excelente"
-    if p >= 81:
-        return "adequado"
-    if p >= 71:
-        return "atencao"
-    return "critico"
-
-
-def build_criterion_template_justifications(pcts: dict | None = None, model: str = "Resultado atual") -> dict:
-    tier_by_model = {
-        "Padrão 100%": "excelente",
-        "Revisão pontual": "adequado",
-        "Acompanhamento": "atencao",
-        "Crítico": "critico",
-    }
-
-    pcts = pcts or {}
-    out = {}
-    for key, templates in WEEKLY_JUSTIFICATION_MODELS.items():
-        tier = tier_by_model.get(model)
-        if tier is None:
-            pct_key = "taxa_erros" if key == "taxa_erros" else key
-            tier = template_tier_from_pct(pcts.get(pct_key, 100))
-        out[key] = templates[tier]
-    return out
 
 
 WEEKLY_JUST_AREA_KEYS = {
@@ -774,6 +721,197 @@ def render_weekly_error_import_panel(employees_df: pd.DataFrame, ws_iso: str):
                 st.rerun()
 
     render_weekly_error_import_dialog_if_needed()
+
+
+MASS_EXCEL_IMPORT_STATE_KEY = "mass_excel_import_preview"
+
+
+def clear_mass_excel_import_state():
+    st.session_state.pop(MASS_EXCEL_IMPORT_STATE_KEY, None)
+
+
+def weekly_eval_upload_digest(uploaded_file) -> str:
+    if uploaded_file is None:
+        return ""
+    if hasattr(uploaded_file, "getvalue"):
+        content = uploaded_file.getvalue()
+    else:
+        position = uploaded_file.tell() if hasattr(uploaded_file, "tell") else None
+        content = uploaded_file.read()
+        if position is not None and hasattr(uploaded_file, "seek"):
+            uploaded_file.seek(position)
+    return hashlib.sha256(content).hexdigest()
+
+
+def render_mass_excel_import_panel(
+    mass_df: pd.DataFrame,
+    employees_df: pd.DataFrame,
+    ws_iso: str,
+    evaluator_options: list[str],
+    default_evaluator: str,
+    ctx_key: str,
+):
+    with st.expander("Excel · exportar e importar avaliações", expanded=False):
+        st.caption(
+            "Baixe a planilha da semana, edite os resultados no Excel e importe o arquivo. "
+            "As cinco justificativas serão geradas no app conforme o modelo escolhido."
+        )
+
+        try:
+            workbook_bytes = build_weekly_eval_workbook_bytes(
+                mass_df=mass_df,
+                week_start_iso=ws_iso,
+                evaluator_options=evaluator_options,
+            )
+        except Exception as exc:
+            st.error(f"Não foi possível montar a planilha: {exc}")
+            workbook_bytes = b""
+
+        selected_for_export = int(mass_df["Selecionar"].fillna(False).astype(bool).sum())
+        if selected_for_export:
+            export_detail = f"{selected_for_export} linha(s) selecionada(s) sairão marcadas como SIM."
+        else:
+            export_detail = "Como não há seleção na tabela, todas as linhas visíveis sairão marcadas como SIM."
+        st.info(export_detail)
+
+        st.download_button(
+            "Baixar planilha de avaliações",
+            data=workbook_bytes,
+            file_name=f"avaliacoes_semanais_{ws_iso}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            disabled=not bool(workbook_bytes),
+            key=f"mass_excel_download_{ctx_key}",
+        )
+
+        render_divider()
+        render_section_header(
+            "Importar planilha preenchida",
+            "O app confere os dados e exibe uma prévia antes de atualizar o banco.",
+            "XLSX",
+        )
+
+        col_file, col_model, col_evaluator = st.columns([1.5, 1, 1], gap="medium")
+        with col_file:
+            uploaded = st.file_uploader(
+                "Arquivo XLSX",
+                type=["xlsx"],
+                key="mass_excel_import_file",
+            )
+        with col_model:
+            justification_model = st.selectbox(
+                "Modelo das justificativas",
+                WEEKLY_JUSTIFICATION_MODEL_OPTIONS,
+                key="mass_excel_justification_model",
+            )
+        with col_evaluator:
+            if st.session_state.get("mass_excel_default_evaluator") not in evaluator_options:
+                st.session_state["mass_excel_default_evaluator"] = (
+                    default_evaluator if default_evaluator in evaluator_options else evaluator_options[0]
+                )
+            import_default_evaluator = st.selectbox(
+                "Avaliador para campos vazios",
+                evaluator_options,
+                key="mass_excel_default_evaluator",
+            )
+
+        current_digest = weekly_eval_upload_digest(uploaded) if uploaded is not None else ""
+        action_preview, action_clear = st.columns([1, 1], gap="small")
+        if action_preview.button(
+            "Gerar prévia da importação",
+            type="primary",
+            disabled=uploaded is None,
+            key="mass_excel_preview_button",
+        ):
+            try:
+                with st.spinner("Lendo e validando a planilha..."):
+                    raw_df = load_weekly_eval_import_file(uploaded)
+                    preview = prepare_weekly_eval_import(
+                        raw_df=raw_df,
+                        employees_df=employees_df,
+                        evaluator_options=evaluator_options,
+                        default_week_start_iso=ws_iso,
+                        justification_model=justification_model,
+                        default_evaluator=import_default_evaluator,
+                    )
+                preview["context_key"] = ctx_key
+                preview["file_digest"] = current_digest
+                st.session_state[MASS_EXCEL_IMPORT_STATE_KEY] = preview
+                st.session_state["mass_excel_confirm"] = False
+            except Exception as exc:
+                clear_mass_excel_import_state()
+                st.error(f"Não foi possível preparar a importação: {exc}")
+
+        if action_clear.button("Limpar prévia", key="mass_excel_clear_preview"):
+            clear_mass_excel_import_state()
+
+        preview = st.session_state.get(MASS_EXCEL_IMPORT_STATE_KEY)
+        if not isinstance(preview, dict):
+            st.caption("Envie o XLSX e gere a prévia para liberar a confirmação.")
+            return
+
+        summary = preview.get("summary", {})
+        total = int(summary.get("total", 0) or 0)
+        selected = int(summary.get("selected", 0) or 0)
+        valid = int(summary.get("valid", 0) or 0)
+        invalid = int(summary.get("invalid", 0) or 0)
+        ignored = int(summary.get("ignored", 0) or 0)
+        preview_matches = (
+            preview.get("context_key") == ctx_key
+            and preview.get("file_digest") == current_digest
+            and preview.get("justification_model") == justification_model
+            and preview.get("default_evaluator") == import_default_evaluator
+        )
+
+        render_status_cards([
+            {"title": "Linhas no arquivo", "value": str(total), "detail": f"{ignored} ignorada(s)", "tone": "neutral"},
+            {"title": "Selecionadas", "value": str(selected), "detail": "marcadas como SIM", "tone": "info"},
+            {"title": "Prontas", "value": str(valid), "detail": "podem ser gravadas", "tone": "success" if valid else "neutral"},
+            {"title": "Revisar", "value": str(invalid), "detail": "bloqueiam o lote", "tone": "danger" if invalid else "success"},
+        ])
+
+        if not preview_matches:
+            st.warning("O arquivo, os filtros, o avaliador ou o modelo mudaram. Gere uma nova prévia antes de importar.")
+        if invalid:
+            st.error("Corrija todas as linhas marcadas como REVISAR no Excel e gere a prévia novamente.")
+        elif valid:
+            st.success(
+                f"{valid} avaliação(ões) pronta(s). As justificativas foram geradas pelo modelo “{justification_model}”."
+            )
+        else:
+            st.warning("Nenhuma linha marcada como SIM está pronta para importação.")
+
+        preview_df = preview.get("preview_df", pd.DataFrame())
+        if isinstance(preview_df, pd.DataFrame) and not preview_df.empty:
+            st.dataframe(preview_df, width="stretch", hide_index=True, height=310)
+
+        st.warning(
+            "A confirmação grava o lote diretamente no banco e substitui os valores da avaliação "
+            "que já existir para o mesmo funcionário e semana."
+        )
+        confirm_import = st.checkbox(
+            "Confirmo que revisei os resultados e as justificativas geradas.",
+            key="mass_excel_confirm",
+        )
+        can_import = preview_matches and invalid == 0 and valid > 0 and confirm_import
+        if st.button(
+            "Importar avaliações no banco",
+            type="primary",
+            disabled=not can_import,
+            key="mass_excel_confirm_import",
+        ):
+            with st.spinner("Gravando as avaliações validadas..."):
+                upsert_weekly_evals(preview.get("valid_rows", []))
+            clear_mass_excel_import_state()
+            st.session_state.pop("mass_eval_context", None)
+            st.session_state["mass_feedback"] = (
+                f"{valid} avaliação(ões) importada(s) do Excel com justificativas do modelo “{justification_model}”."
+            )
+            mark_operation_status(
+                "Avaliações do Excel gravadas no banco",
+                f"{valid} registro(s) salvo(s) para a semana {ws_iso}.",
+                "success",
+            )
+            st.rerun()
 
 
 def row_pcts_from_mass_row(row: pd.Series) -> dict:
@@ -1483,6 +1621,14 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
     )
 
     current_mass_df = normalize_mass_eval_df(st.session_state["mass_eval_df"].copy())
+    render_mass_excel_import_panel(
+        mass_df=current_mass_df,
+        employees_df=emp,
+        ws_iso=ws_mass_iso,
+        evaluator_options=evaluator_options,
+        default_evaluator=evaluator_mass,
+        ctx_key=ctx_key,
+    )
     selected_count = int(current_mass_df["Selecionar"].fillna(False).astype(bool).sum())
     invalid_df = build_mass_validation_df(current_mass_df)
     invalid_count = int(len(invalid_df))
@@ -1614,7 +1760,7 @@ def render_mass_weekly_tab(emp: pd.DataFrame, evaluator_options: list[str]):
         with m1:
             mass_template_model = st.selectbox(
                 "Modelo padrão de justificativa",
-                ["Resultado atual", "Padrão 100%", "Revisão pontual", "Acompanhamento", "Crítico"],
+                WEEKLY_JUSTIFICATION_MODEL_OPTIONS,
                 key="mass_template_model",
             )
         with m2:

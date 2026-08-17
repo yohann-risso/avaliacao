@@ -204,6 +204,24 @@ Acoes rapidas:
 
 Antes de salvar, a app valida percentuais, itens, avaliador e justificativas dos selecionados. O banco so e alterado ao clicar em **Salvar selecionados no banco**.
 
+#### Avaliacao em massa pelo Excel
+
+O bloco **Excel · exportar e importar avaliacoes** permite concluir o mesmo lote fora da app:
+
+1. ajuste a semana e os filtros da avaliacao em massa;
+2. opcionalmente, selecione na tabela somente os colaboradores desejados;
+3. clique em **Baixar planilha de avaliacoes**;
+4. no Excel, mantenha `SIM` em **Importar?** apenas nas linhas que devem ser gravadas e preencha itens, percentuais, avaliador e notas;
+5. envie o XLSX preenchido, escolha o **Modelo das justificativas** e o avaliador usado nos campos vazios;
+6. clique em **Gerar previa da importacao**, confira resultados e as cinco justificativas geradas;
+7. confirme a revisao e clique em **Importar avaliacoes no banco**.
+
+O arquivo possui validacoes de entrada, score calculado e uma aba de instrucoes. `employee_id`, colaborador, setor, funcao e semana sao campos de identificacao e nao devem ser alterados.
+
+A app bloqueia o lote se houver semana diferente da selecionada, colaborador inativo/nao avaliavel, percentual fora de 0 a 100, quantidade invalida, avaliador desconhecido ou colaborador duplicado. Linhas marcadas como `NAO` sao ignoradas.
+
+As justificativas nao precisam ser digitadas na planilha. Elas sao preenchidas na previa conforme um destes modelos: **Resultado atual**, **Padrao 100%**, **Revisao pontual**, **Acompanhamento** ou **Critico**. A confirmacao atualiza a avaliacao existente quando houver o mesmo `employee_id + week_start`.
+
 ## Etapa 3: Monitoria Mensal
 
 A tela **Monitoria Mensal** avalia somente funcionarios ativos marcados como monitores e que ja sao elegiveis pela data **Monitor desde**.

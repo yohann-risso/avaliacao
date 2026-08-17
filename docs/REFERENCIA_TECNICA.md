@@ -80,6 +80,7 @@ Menu:
 | `ui_users.py` | Cadastro e gestao de usuarios de login, com vinculo ao avaliador. |
 | `ui_employees.py` | Cadastro, listagem, edicao, ativacao/desativacao de funcionarios. |
 | `ui_weekly.py` | Avaliacao semanal individual, avaliacao em massa, log de erros, justificativas e historico. |
+| `weekly_eval_excel.py` | Geracao do XLSX de avaliacao em massa, leitura, validacao, previa e justificativas por modelo. |
 | `ui_monitor.py` | Avaliacao mensal de monitores, justificativas e previa financeira. |
 | `ui_report.py` | Fechamento mensal, checklist, consolidacoes, CSVs e PDFs. |
 
@@ -224,6 +225,16 @@ Fontes chamadas com casts explicitos de tipo:
 O cruzamento usa `employees.picking_operator_name` e `employees.bybox_operator_name`; quando vazios, usa `employees.name`. A resolucao tenta match exato primeiro e, se nao houver, aplica similaridade conservadora de nomes, removendo acentos/particulas e aceitando abreviacoes com dois ou mais componentes em comum. Caso haja empate/ambiguidade, nao escolhe automaticamente.
 
 Na avaliacao individual, a leitura externa fica em cache de sessao por funcionario, semana e mapeamentos de operador. A RPC e carregada ao iniciar a avaliacao e nao e refeita ao alternar entre as etapas. O botao **Recarregar dados da RPC** invalida esse cache e busca novamente as metricas externas.
+
+Na avaliacao em massa, `weekly_eval_excel.py` gera um XLSX com identificadores do colaborador, semana, entradas editaveis, validacoes de dados, score por formula e lista de avaliadores ativos. Na importacao, o modulo:
+
+- considera somente linhas marcadas como `SIM`;
+- valida `employee_id`, semana, percentuais, itens, avaliador e duplicidades;
+- usa o avaliador padrao da tela quando a celula estiver vazia;
+- gera as cinco justificativas pelo modelo escolhido na previa;
+- monta os payloads consumidos por `db.upsert_weekly_evals()`.
+
+O lote so e liberado para confirmacao quando todas as linhas selecionadas forem validas. A gravacao usa o `executemany` transacional ja adotado pela edicao em massa e respeita a chave unica `employee_id + week_start`.
 
 Regra de consolidacao semanal:
 
@@ -451,6 +462,7 @@ Arquivos atuais:
 - `tests/test_report_period_validity.py`: funcionarios validos no periodo.
 - `tests/test_sector_followup_report.py`: acompanhamento de setor e PDF.
 - `tests/test_mass_editor_sync.py`: sincronizacao do editor em massa.
+- `tests/test_weekly_eval_excel.py`: template XLSX, validacoes de importacao, modelos de justificativa e persistencia do lote.
 - `tests/test_theme_cards.py`: HTML compacto dos cards de status.
 
 Para rodar:
