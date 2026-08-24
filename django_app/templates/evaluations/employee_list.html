@@ -1,6 +1,0 @@
-{% extends 'evaluations/base.html' %}
-{% block content %}
-<div class="page-head"><div><p class="eyebrow">CADASTRO</p><h1>Funcionários</h1></div><a class="button" href="{% url 'employee_create' %}">Novo funcionário</a></div>
-<form method="get" class="filters"><input name="q" value="{{ query }}" placeholder="Buscar nome, setor ou função"><label><input type="checkbox" name="inactive" value="1" {% if request.GET.inactive %}checked{% endif %}> Incluir inativos</label><button>Filtrar</button></form>
-<div class="table-wrap"><table><thead><tr><th>Nome</th><th>Setor</th><th>Função</th><th>Status</th><th></th></tr></thead><tbody>{% for employee in employees %}<tr><td>{{ employee.name }}</td><td>{{ employee.sector }}</td><td>{{ employee.role }}</td><td>{% if employee.active %}Ativo{% else %}Inativo{% endif %}</td><td><a href="{% url 'employee_edit' employee.id %}">Editar</a></td></tr>{% empty %}<tr><td colspan="5">Nenhum funcionário encontrado.</td></tr>{% endfor %}</tbody></table></div>{% include 'evaluations/_pagination.html' %}
-{% endblock %}

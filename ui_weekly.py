@@ -53,6 +53,7 @@ from db import (
     add_weekly_error,
     add_weekly_errors,
     list_weekly_errors,
+    list_weekly_errors_for_employees_weeks,
     delete_weekly_error,
     list_last_weekly,
 )
@@ -67,6 +68,7 @@ from weekly_eval_excel import (
     load_weekly_eval_import_file,
     prepare_weekly_eval_import,
     template_tier_from_pct,
+    weekly_eval_import_week_starts,
 )
 from picking_metrics import fetch_weekly_picking_metrics_for_employees
 
@@ -743,6 +745,26 @@ def weekly_eval_upload_digest(uploaded_file) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def mass_weekly_errors_context(
+    employees_df: pd.DataFrame,
+    week_start_isos: list[str],
+) -> tuple[dict, str]:
+    weekly_errors_df = list_weekly_errors_for_employees_weeks(
+        employees_df["id"].astype(int).tolist(),
+        week_start_isos,
+    )
+    weekly_errors_by_key = {}
+    if not weekly_errors_df.empty:
+        for (employee_id, week_start), group in weekly_errors_df.groupby(
+            ["employee_id", "week_start"],
+            sort=False,
+        ):
+            weekly_errors_by_key[(int(employee_id), str(week_start))] = group.to_dict(orient="records")
+
+    digest_source = weekly_errors_df.fillna("").to_csv(index=False).encode("utf-8")
+    return weekly_errors_by_key, hashlib.sha256(digest_source).hexdigest()
+
+
 def render_mass_excel_import_panel(
     mass_df: pd.DataFrame,
     employees_df: pd.DataFrame,
@@ -754,7 +776,9 @@ def render_mass_excel_import_panel(
     with st.expander("Excel · exportar e importar avaliações", expanded=False):
         st.caption(
             "Baixe a planilha da semana, edite os resultados no Excel e importe o arquivo. "
-            "As cinco justificativas serão geradas no app conforme o modelo escolhido."
+            "A coluna Semana pode conter outras datas e o mesmo arquivo pode reunir várias semanas. "
+            "Deixe Taxa Erros (%) vazia: o app usará os erros já registrados e calculará o resultado em intervalos de 5%. "
+            "As cinco justificativas serão geradas conforme o modelo escolhido."
         )
 
         try:
@@ -815,6 +839,7 @@ def render_mass_excel_import_panel(
             )
 
         current_digest = weekly_eval_upload_digest(uploaded) if uploaded is not None else ""
+        current_errors_digest = ""
         action_preview, action_clear = st.columns([1, 1], gap="small")
         if action_preview.button(
             "Gerar prévia da importação",
@@ -823,8 +848,13 @@ def render_mass_excel_import_panel(
             key="mass_excel_preview_button",
         ):
             try:
-                with st.spinner("Lendo e validando a planilha..."):
+                with st.spinner("Lendo a planilha e calculando a taxa com os erros já registrados..."):
                     raw_df = load_weekly_eval_import_file(uploaded)
+                    import_weeks = weekly_eval_import_week_starts(raw_df)
+                    weekly_errors_by_key, current_errors_digest = mass_weekly_errors_context(
+                        employees_df,
+                        import_weeks,
+                    )
                     preview = prepare_weekly_eval_import(
                         raw_df=raw_df,
                         employees_df=employees_df,
@@ -832,9 +862,11 @@ def render_mass_excel_import_panel(
                         default_week_start_iso=ws_iso,
                         justification_model=justification_model,
                         default_evaluator=import_default_evaluator,
+                        weekly_errors_by_key=weekly_errors_by_key,
                     )
                 preview["context_key"] = ctx_key
                 preview["file_digest"] = current_digest
+                preview["weekly_errors_digest"] = current_errors_digest
                 st.session_state[MASS_EXCEL_IMPORT_STATE_KEY] = preview
                 st.session_state["mass_excel_confirm"] = False
             except Exception as exc:
@@ -855,9 +887,16 @@ def render_mass_excel_import_panel(
         valid = int(summary.get("valid", 0) or 0)
         invalid = int(summary.get("invalid", 0) or 0)
         ignored = int(summary.get("ignored", 0) or 0)
+        preview_weeks = preview.get("week_start_isos", [])
+        if not current_errors_digest:
+            _, current_errors_digest = mass_weekly_errors_context(
+                employees_df,
+                preview.get("week_start_isos", []),
+            )
         preview_matches = (
             preview.get("context_key") == ctx_key
             and preview.get("file_digest") == current_digest
+            and preview.get("weekly_errors_digest") == current_errors_digest
             and preview.get("justification_model") == justification_model
             and preview.get("default_evaluator") == import_default_evaluator
         )
@@ -870,12 +909,17 @@ def render_mass_excel_import_panel(
         ])
 
         if not preview_matches:
-            st.warning("O arquivo, os filtros, o avaliador ou o modelo mudaram. Gere uma nova prévia antes de importar.")
+            st.warning(
+                "O arquivo, os filtros, o avaliador, o modelo ou o log de erros mudaram. "
+                "Gere uma nova prévia antes de importar."
+            )
         if invalid:
             st.error("Corrija todas as linhas marcadas como REVISAR no Excel e gere a prévia novamente.")
         elif valid:
             st.success(
-                f"{valid} avaliação(ões) pronta(s). As justificativas foram geradas pelo modelo “{justification_model}”."
+                f"{valid} avaliação(ões) pronta(s) em {len(preview_weeks)} semana(s). "
+                "A Taxa de Erros foi calculada com o log de cada semana em intervalos de 5%, "
+                f"e as justificativas foram geradas pelo modelo “{justification_model}”."
             )
         else:
             st.warning("Nenhuma linha marcada como SIM está pronta para importação.")
@@ -904,11 +948,12 @@ def render_mass_excel_import_panel(
             clear_mass_excel_import_state()
             st.session_state.pop("mass_eval_context", None)
             st.session_state["mass_feedback"] = (
-                f"{valid} avaliação(ões) importada(s) do Excel com justificativas do modelo “{justification_model}”."
+                f"{valid} avaliação(ões) de {len(preview_weeks)} semana(s) importada(s) do Excel "
+                f"com justificativas do modelo “{justification_model}”."
             )
             mark_operation_status(
                 "Avaliações do Excel gravadas no banco",
-                f"{valid} registro(s) salvo(s) para a semana {ws_iso}.",
+                f"{valid} registro(s) salvo(s) em {len(preview_weeks)} semana(s).",
                 "success",
             )
             st.rerun()

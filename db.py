@@ -1357,6 +1357,43 @@ def list_weekly_errors(employee_id: int, week_start_iso: str) -> pd.DataFrame:
         ORDER BY id DESC
     """, (employee_id, week_start_iso))
 
+
+def list_weekly_errors_for_employees(employee_ids: list[int], week_start_iso: str) -> pd.DataFrame:
+    return list_weekly_errors_for_employees_weeks(employee_ids, [week_start_iso])
+
+
+def list_weekly_errors_for_employees_weeks(
+    employee_ids: list[int],
+    week_start_isos: list[str],
+) -> pd.DataFrame:
+    ids = sorted({int(employee_id) for employee_id in employee_ids if employee_id is not None})
+    weeks = sorted({normalize_week_start_iso(value) for value in week_start_isos if value})
+    if not ids or not weeks:
+        return pd.DataFrame(columns=[
+            "employee_id",
+            "week_start",
+            "error_type",
+            "severity",
+            "qty",
+            "notes",
+            "created_at",
+        ])
+
+    employee_placeholders = ",".join("?" for _ in ids)
+    week_placeholders = ",".join("?" for _ in weeks)
+    return fetch_df(
+        f"""
+        SELECT employee_id, week_start, error_type, severity, qty,
+               COALESCE(notes,'') AS notes, created_at
+        FROM weekly_errors
+        WHERE week_start IN ({week_placeholders})
+          AND employee_id IN ({employee_placeholders})
+        ORDER BY week_start, employee_id, id
+        """,
+        (*weeks, *ids),
+    )
+
+
 def delete_weekly_error(error_id: int):
     exec_sql("DELETE FROM weekly_errors WHERE id=?", (error_id,))
 

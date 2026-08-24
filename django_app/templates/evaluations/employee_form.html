@@ -1,2 +1,0 @@
-{% extends 'evaluations/base.html' %}
-{% block content %}<p class="eyebrow">CADASTRO</p><h1>{% if employee.pk %}Editar{% else %}Novo{% endif %} funcionário</h1><form method="post" class="form form-grid">{% csrf_token %}{{ form.as_p }}<div class="form-actions"><button>Salvar</button><a href="{% url 'employee_list' %}">Cancelar</a></div></form>{% endblock %}

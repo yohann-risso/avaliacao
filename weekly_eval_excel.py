@@ -4,6 +4,7 @@ import re
 import unicodedata
 from datetime import date, datetime
 from io import BytesIO
+from math import floor
 from typing import Any
 
 import pandas as pd
@@ -16,7 +17,8 @@ from openpyxl.worksheet.datavalidation import DataValidation
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from db import normalize_week_start_iso
-from utils import strip_embedded_justification_block
+from rules import suggest_taxa_erros_pct
+from utils import monday_of, strip_embedded_justification_block
 
 
 WEEKLY_EVAL_SHEET_NAME = "Avaliacoes"
@@ -125,10 +127,11 @@ WEEKLY_EVAL_COLUMN_ALIASES = {
 PCT_FIELDS = {
     "assiduidade_pct": "Assiduidade (%)",
     "qualidade_pct": "Qualidade (%)",
-    "taxa_erros_pct": "Taxa Erros (%)",
     "produtividade_pct": "Prod/Efic (%)",
     "comportamento_pct": "Comportamento (%)",
 }
+
+ERROR_RATE_STEP = 5
 
 
 def _safe_float(value: Any, default: float = 100.0) -> float:
@@ -136,6 +139,45 @@ def _safe_float(value: Any, default: float = 100.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return float(default)
+
+
+def round_percentage_to_step(value: float, step: int = ERROR_RATE_STEP) -> float:
+    if int(step) <= 0:
+        raise ValueError("O intervalo de arredondamento deve ser positivo.")
+    step = int(step)
+    bounded = min(100.0, max(0.0, float(value)))
+    rounded = floor((bounded + (step / 2.0)) / step) * step
+    return float(min(100, max(0, rounded)))
+
+
+def calculate_import_error_rate(
+    role: str,
+    items_count: int,
+    weekly_errors_rows: list[dict] | None,
+    step: int = ERROR_RATE_STEP,
+) -> dict:
+    error_rows = list(weekly_errors_rows or [])
+    suggestion = suggest_taxa_erros_pct(
+        role=str(role or ""),
+        items_count=int(items_count or 0),
+        weekly_errors_rows=error_rows,
+        strict_critical_zero=True,
+        factor=12.0,
+    )
+    raw_pct = float(suggestion.suggested_pct)
+    rounded_pct = round_percentage_to_step(raw_pct, step)
+    error_qty = sum(max(0, int(row.get("qty") or 1)) for row in error_rows)
+    reason = str(suggestion.reason or "").strip()
+    if rounded_pct != raw_pct:
+        reason += f" Resultado bruto: {raw_pct:.1f}%; ajustado para {rounded_pct:.0f}% em intervalos de {step}%."
+    else:
+        reason += f" Resultado mantido em {rounded_pct:.0f}%, já compatível com intervalos de {step}%."
+    return {
+        "pct": rounded_pct,
+        "raw_pct": raw_pct,
+        "error_qty": error_qty,
+        "reason": reason.strip(),
+    }
 
 
 def template_tier_from_pct(pct: float) -> str:
@@ -263,9 +305,26 @@ def _parse_week(value: Any) -> tuple[str | None, str]:
     if isinstance(value, pd.Timestamp):
         value = value.to_pydatetime()
     try:
-        return normalize_week_start_iso(value), ""
+        parsed = datetime.strptime(normalize_week_start_iso(value), "%Y-%m-%d").date()
+        return monday_of(parsed).isoformat(), ""
     except Exception:
         return None, "Semana inválida"
+
+
+def weekly_eval_import_week_starts(raw_df: pd.DataFrame) -> list[str]:
+    data = _canonicalize_import_columns(raw_df)
+    if "week_start" not in data.columns:
+        return []
+
+    weeks = set()
+    for _, row in data.iterrows():
+        should_import, flag_problem = _parse_import_flag(row.get("importar"))
+        if flag_problem or should_import is not True:
+            continue
+        week_start_iso, problem = _parse_week(row.get("week_start"))
+        if not problem and week_start_iso:
+            weeks.add(week_start_iso)
+    return sorted(weeks)
 
 
 def _build_notes_with_justifications(notes: str, justifications: dict) -> str:
@@ -330,10 +389,10 @@ def build_weekly_eval_workbook_bytes(
             int(_safe_float(row.get("Itens", 0), 0)),
             _safe_float(row.get("Assiduidade (%)", 100), 100),
             _safe_float(row.get("Qualidade (%)", 100), 100),
-            _safe_float(row.get("Taxa Erros (%)", 100), 100),
+            None,
             _safe_float(row.get("Prod/Efic (%)", 100), 100),
             _safe_float(row.get("Comportamento (%)", 100), 100),
-            f'=IF(COUNTA(H{excel_row}:L{excel_row})=0,"",ROUND(AVERAGE(H{excel_row}:L{excel_row}),1))',
+            f'=IF(COUNTA(H{excel_row}:L{excel_row})<5,"",ROUND(AVERAGE(H{excel_row}:L{excel_row}),1))',
             _excel_text(row.get("Avaliador", "")),
             str(row.get("Notas", "") or ""),
         ]
@@ -342,10 +401,12 @@ def build_weekly_eval_workbook_bytes(
             cell.border = Border(bottom=thin_gray)
             cell.alignment = Alignment(vertical="top", wrap_text=col_idx == 15)
 
-        for col_idx in (2, 3, 4, 5, 6, 13):
+        for col_idx in (2, 3, 4, 5, 13):
             sheet.cell(excel_row, col_idx).fill = PatternFill("solid", fgColor=pale_gray)
             sheet.cell(excel_row, col_idx).protection = Protection(locked=True)
-        for col_idx in (1, 7, 8, 9, 10, 11, 12, 14, 15):
+        sheet.cell(excel_row, 10).fill = PatternFill("solid", fgColor=pale_blue)
+        sheet.cell(excel_row, 10).protection = Protection(locked=True)
+        for col_idx in (1, 6, 7, 8, 9, 11, 12, 14, 15):
             sheet.cell(excel_row, col_idx).fill = PatternFill("solid", fgColor=pale_yellow)
             sheet.cell(excel_row, col_idx).protection = Protection(locked=False)
 
@@ -382,8 +443,18 @@ def build_weekly_eval_workbook_bytes(
     sheet.column_dimensions["O"].width = 42
 
     sheet["B1"].comment = Comment("Identificador interno. Não altere.", "Sistema")
-    sheet["F1"].comment = Comment("A importação aceita somente a semana selecionada no app.", "Sistema")
-    sheet["M1"].comment = Comment("Calculado automaticamente pela média dos cinco critérios.", "Sistema")
+    sheet["F1"].comment = Comment(
+        "Informe qualquer data da semana desejada. O app normaliza a data para a segunda-feira correspondente.",
+        "Sistema",
+    )
+    sheet["J1"].comment = Comment(
+        "Deixe esta coluna vazia. O app calcula a taxa com os erros já registrados para o funcionário e a semana.",
+        "Sistema",
+    )
+    sheet["M1"].comment = Comment(
+        "O score final será exibido na prévia depois que o app calcular a Taxa de Erros.",
+        "Sistema",
+    )
 
     import_validation = DataValidation(type="list", formula1='"SIM,NÃO"', allow_blank=False)
     import_validation.error = "Escolha SIM ou NÃO."
@@ -406,7 +477,8 @@ def build_weekly_eval_workbook_bytes(
     pct_validation.errorTitle = "Percentual inválido"
     pct_validation.showErrorMessage = True
     sheet.add_data_validation(pct_validation)
-    pct_validation.add(f"H2:L{max_row}")
+    pct_validation.add(f"H2:I{max_row}")
+    pct_validation.add(f"K2:L{max_row}")
 
     items_validation = DataValidation(type="whole", operator="greaterThanOrEqual", formula1="0", allow_blank=True)
     items_validation.error = "Informe um número inteiro maior ou igual a zero."
@@ -414,6 +486,19 @@ def build_weekly_eval_workbook_bytes(
     items_validation.showErrorMessage = True
     sheet.add_data_validation(items_validation)
     items_validation.add(f"G2:G{max_row}")
+
+    week_validation = DataValidation(
+        type="date",
+        operator="between",
+        formula1="DATE(2020,1,1)",
+        formula2="DATE(2100,12,31)",
+        allow_blank=False,
+    )
+    week_validation.error = "Informe uma data válida para a semana."
+    week_validation.errorTitle = "Data inválida"
+    week_validation.showErrorMessage = True
+    sheet.add_data_validation(week_validation)
+    week_validation.add(f"F2:F{max_row}")
 
     lists.append(["Avaliadores ativos"])
     for evaluator in evaluator_options:
@@ -453,23 +538,25 @@ def build_weekly_eval_workbook_bytes(
     instructions.row_dimensions[1].height = 24
     instruction_rows = [
         (4, "1. Escolha as linhas", "Use SIM em “Importar?” somente para os colaboradores que devem ser gravados."),
-        (6, "2. Preencha os resultados", "Informe Itens e os cinco percentuais entre 0 e 100. Não altere employee_id, Nome, Setor, Função ou Semana."),
+        (6, "2. Preencha semana e resultados", "A coluna Semana aceita qualquer data e é normalizada para a segunda-feira correspondente. Informe Itens, Assiduidade, Qualidade, Prod/Efic e Comportamento. Deixe Taxa Erros (%) vazia."),
         (8, "3. Defina o avaliador", "Escolha um avaliador ativo na lista. Se deixar vazio, o app usará o avaliador padrão escolhido na importação."),
         (10, "4. Importe no app", "Envie este XLSX na Avaliação em massa, escolha o modelo de justificativa e gere a prévia."),
-        (12, "5. Confirme a gravação", "O app valida o arquivo e mostra as justificativas antes de atualizar o banco."),
+        (12, "5. Confirme a gravação", "Para cada linha, o app consulta os erros da semana informada, calcula a taxa em intervalos de 5% e mostra as justificativas antes de atualizar o banco."),
     ]
     for row_idx, title, detail in instruction_rows:
         instructions.cell(row_idx, 1, title)
         instructions.cell(row_idx, 1).font = Font(bold=True, color=blue, size=12)
         instructions.cell(row_idx + 1, 1, detail)
         instructions.cell(row_idx + 1, 1).alignment = Alignment(wrap_text=True, vertical="top")
+        instructions.row_dimensions[row_idx + 1].height = 32
         instructions.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=6)
         instructions.merge_cells(start_row=row_idx + 1, start_column=1, end_row=row_idx + 1, end_column=6)
     instructions["A15"] = "Importante"
     instructions["A15"].font = Font(bold=True, color="9C0006")
     instructions["A16"] = (
         "A importação atualiza a avaliação que já existir para o mesmo employee_id e semana. "
-        "As cinco justificativas são geradas no app pelo modelo escolhido; não precisam ser digitadas nesta planilha."
+        "A Taxa de Erros é sempre recalculada com o log semanal; qualquer valor digitado nessa coluna será ignorado. "
+        "As cinco justificativas são geradas no app pelo modelo escolhido."
     )
     instructions["A16"].fill = PatternFill("solid", fgColor="FCE8E6")
     instructions["A16"].alignment = Alignment(wrap_text=True, vertical="top")
@@ -508,6 +595,7 @@ def prepare_weekly_eval_import(
     default_week_start_iso: str,
     justification_model: str,
     default_evaluator: str = "",
+    weekly_errors_by_key: dict[tuple[int, str], list[dict]] | None = None,
 ) -> dict:
     if justification_model not in WEEKLY_JUSTIFICATION_MODEL_OPTIONS:
         raise ValueError("Selecione um modelo de justificativa válido.")
@@ -522,6 +610,7 @@ def prepare_weekly_eval_import(
     evaluator_options = [str(value).strip() for value in evaluator_options if str(value).strip()]
     evaluator_lookup = {value.casefold(): value for value in evaluator_options}
     default_evaluator = str(default_evaluator or "").strip()
+    weekly_errors_by_key = weekly_errors_by_key or {}
 
     employees = employees_df.copy()
     employee_lookup = {
@@ -562,9 +651,6 @@ def prepare_weekly_eval_import(
         week_start_iso, week_problem = _parse_week(row.get("week_start"))
         if week_problem:
             problems.append(week_problem)
-        elif week_start_iso != default_week_start_iso:
-            problems.append(f"Semana deve ser {default_week_start_iso}")
-
         key = (employee_id, week_start_iso)
         if employee_id is not None and week_start_iso and key in seen_keys:
             problems.append("colaborador duplicado no arquivo para a mesma semana")
@@ -603,10 +689,16 @@ def prepare_weekly_eval_import(
         pcts = {
             "assiduidade": parsed_pcts["assiduidade_pct"],
             "qualidade": parsed_pcts["qualidade_pct"],
-            "taxa_erros": parsed_pcts["taxa_erros_pct"],
             "produtividade": parsed_pcts["produtividade_pct"],
             "comportamento": parsed_pcts["comportamento_pct"],
         }
+        error_rows = weekly_errors_by_key.get((int(employee_id), str(week_start_iso)), [])
+        error_rate = calculate_import_error_rate(
+            role=_clean_text(employee.get("role", "")),
+            items_count=int(items_count),
+            weekly_errors_rows=error_rows,
+        )
+        pcts["taxa_erros"] = float(error_rate["pct"])
         justifications = build_criterion_template_justifications(pcts, justification_model)
         notes = _clean_text(row.get("notes", ""))
 
@@ -627,6 +719,9 @@ def prepare_weekly_eval_import(
             "taxa_erros_just": justifications["taxa_erros"],
             "produtividade_just": justifications["produtividade"],
             "comportamento_just": justifications["comportamento"],
+            "taxa_erros_raw_pct": float(error_rate["raw_pct"]),
+            "taxa_erros_reason": error_rate["reason"],
+            "weekly_error_qty": int(error_rate["error_qty"]),
         })
         preview_rows.append({
             "Linha": excel_row,
@@ -635,6 +730,9 @@ def prepare_weekly_eval_import(
             "Semana": week_start_iso,
             "Avaliador": evaluator,
             "Modelo": justification_model,
+            "Erros no log": int(error_rate["error_qty"]),
+            "Taxa calculada (%)": float(error_rate["pct"]),
+            "Regra da taxa": error_rate["reason"],
             "Score (%)": round(sum(pcts.values()) / len(pcts), 1),
             "Assiduidade Just.": justifications["assiduidade"],
             "Qualidade Just.": justifications["qualidade"],
@@ -655,6 +753,7 @@ def prepare_weekly_eval_import(
         "preview_df": pd.DataFrame(preview_rows),
         "valid_rows": valid_rows,
         "week_start_iso": default_week_start_iso,
+        "week_start_isos": sorted({row["week_start_iso"] for row in valid_rows}),
         "justification_model": justification_model,
         "default_evaluator": default_evaluator,
     }

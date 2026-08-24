@@ -1,2 +1,0 @@
-{% extends 'evaluations/base.html' %}
-{% block content %}<p class="eyebrow">ETAPA 3</p><h1>{% if evaluation %}Editar{% else %}Nova{% endif %} avaliação semanal</h1><form method="post" class="form form-grid">{% csrf_token %}{{ form.as_p }}<div class="form-actions"><button>Salvar avaliação</button><a href="{% url 'weekly_list' %}">Cancelar</a></div></form>{% endblock %}

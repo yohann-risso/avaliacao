@@ -13,22 +13,6 @@ App interno para cadastro de colaboradores, avaliação semanal, monitoria mensa
 
 Essa stack prioriza velocidade de uso, baixa fricção de manutenção e operação multiusuário. O banco da aplicação é o Supabase; bancos SQLite locais são ignorados pelo repositório e só devem ser usados como origem temporária de migração ou apoio de testes.
 
-## Migração para Django
-
-O repositório agora inclui uma aplicação Django paralela em `django_app/`. Ela substitui o ciclo de rerun do Streamlit por rotas HTTP isoladas, preserva o PostgreSQL/Supabase atual e mapeia as tabelas existentes sem recriá-las.
-
-Para executar localmente, defina `APP_DATABASE_URL` com a connection string do Supabase e uma chave de sessão segura, sem gravá-las no Git:
-
-```powershell
-$env:APP_DATABASE_URL = "postgresql://..."
-$env:DJANGO_SECRET_KEY = "gere-uma-chave-longa-e-aleatoria"
-$env:DJANGO_DEBUG = "1"
-python django_app\manage.py check
-python django_app\manage.py runserver
-```
-
-O Django usa conexão PostgreSQL do servidor; não expõe uma chave Supabase no navegador e não depende da Data API. Consulte [o guia de migração](docs/MIGRACAO_DJANGO.md) antes do corte de produção.
-
 ## Rodando localmente
 
 ```powershell

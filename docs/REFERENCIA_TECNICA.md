@@ -226,10 +226,14 @@ O cruzamento usa `employees.picking_operator_name` e `employees.bybox_operator_n
 
 Na avaliacao individual, a leitura externa fica em cache de sessao por funcionario, semana e mapeamentos de operador. A RPC e carregada ao iniciar a avaliacao e nao e refeita ao alternar entre as etapas. O botao **Recarregar dados da RPC** invalida esse cache e busca novamente as metricas externas.
 
-Na avaliacao em massa, `weekly_eval_excel.py` gera um XLSX com identificadores do colaborador, semana, entradas editaveis, validacoes de dados, score por formula e lista de avaliadores ativos. Na importacao, o modulo:
+Na avaliacao em massa, `weekly_eval_excel.py` gera um XLSX com identificadores do colaborador, semana editavel, entradas editaveis, validacoes de dados e lista de avaliadores ativos. A coluna `Taxa Erros (%)` fica vazia e e tratada como calculada. Na importacao, o modulo:
 
 - considera somente linhas marcadas como `SIM`;
-- valida `employee_id`, semana, percentuais, itens, avaliador e duplicidades;
+- valida `employee_id`, datas das semanas, os quatro percentuais editaveis, itens, avaliador e duplicidades por `employee_id + week_start`;
+- aceita varias semanas no mesmo arquivo e normaliza qualquer data para a segunda-feira correspondente;
+- consulta em lote `weekly_errors` para todos os pares de colaborador e semana presentes no arquivo;
+- calcula `taxa_erros_pct` com `suggest_taxa_erros_pct()`, usando `strict_critical_zero=True` e fator `12`;
+- arredonda a taxa bruta para o multiplo de 5 mais proximo, limitado a 0–100;
 - usa o avaliador padrao da tela quando a celula estiver vazia;
 - gera as cinco justificativas pelo modelo escolhido na previa;
 - monta os payloads consumidos por `db.upsert_weekly_evals()`.

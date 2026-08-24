@@ -208,17 +208,20 @@ Antes de salvar, a app valida percentuais, itens, avaliador e justificativas dos
 
 O bloco **Excel · exportar e importar avaliacoes** permite concluir o mesmo lote fora da app:
 
-1. ajuste a semana e os filtros da avaliacao em massa;
+1. ajuste a semana inicial e os filtros da avaliacao em massa;
 2. opcionalmente, selecione na tabela somente os colaboradores desejados;
 3. clique em **Baixar planilha de avaliacoes**;
-4. no Excel, mantenha `SIM` em **Importar?** apenas nas linhas que devem ser gravadas e preencha itens, percentuais, avaliador e notas;
-5. envie o XLSX preenchido, escolha o **Modelo das justificativas** e o avaliador usado nos campos vazios;
-6. clique em **Gerar previa da importacao**, confira resultados e as cinco justificativas geradas;
-7. confirme a revisao e clique em **Importar avaliacoes no banco**.
+4. no Excel, mantenha `SIM` em **Importar?** apenas nas linhas que devem ser gravadas e preencha Semana, itens, Assiduidade, Qualidade, Prod/Efic, Comportamento, avaliador e notas;
+5. deixe **Taxa Erros (%)** vazia, pois ela sera calculada durante a importacao;
+6. envie o XLSX preenchido, escolha o **Modelo das justificativas** e o avaliador usado nos campos vazios;
+7. clique em **Gerar previa da importacao**, confira a taxa calculada, os resultados e as cinco justificativas geradas;
+8. confirme a revisao e clique em **Importar avaliacoes no banco**.
 
-O arquivo possui validacoes de entrada, score calculado e uma aba de instrucoes. `employee_id`, colaborador, setor, funcao e semana sao campos de identificacao e nao devem ser alterados.
+O arquivo possui validacoes de entrada, score final na previa e uma aba de instrucoes. `employee_id`, colaborador, setor e funcao sao campos de identificacao e nao devem ser alterados. A coluna **Semana** e editavel: o mesmo arquivo pode conter varias semanas, independentemente da semana selecionada na tela. Qualquer data valida e normalizada para a segunda-feira correspondente.
 
-A app bloqueia o lote se houver semana diferente da selecionada, colaborador inativo/nao avaliavel, percentual fora de 0 a 100, quantidade invalida, avaliador desconhecido ou colaborador duplicado. Linhas marcadas como `NAO` sao ignoradas.
+A app bloqueia o lote se houver data de semana invalida, colaborador inativo/nao avaliavel, percentual editavel fora de 0 a 100, quantidade invalida, avaliador desconhecido ou repeticao do mesmo colaborador na mesma semana. Linhas marcadas como `NAO` sao ignoradas.
+
+Na previa, a **Taxa Erros (%)** e calculada com os erros ja registrados no log para o mesmo colaborador e para a semana informada em cada linha. A regra considera funcao, gravidade, quantidade de erros e, para picking, o volume de itens informado. O resultado e arredondado para o multiplo de 5 mais proximo, entre 0% e 100%. Sem erros registrados, o resultado e 100%. Erros criticos continuam respeitando a regra de zerar a taxa quando aplicavel. Qualquer valor digitado nessa coluna do Excel e ignorado.
 
 As justificativas nao precisam ser digitadas na planilha. Elas sao preenchidas na previa conforme um destes modelos: **Resultado atual**, **Padrao 100%**, **Revisao pontual**, **Acompanhamento** ou **Critico**. A confirmacao atualiza a avaliacao existente quando houver o mesmo `employee_id + week_start`.
 
