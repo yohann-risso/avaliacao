@@ -4,6 +4,7 @@ import { MONITOR_FIXED_VALUE, WEEKLY_CRITERIA } from "@/lib/constants";
 import { eligibleWeeks, isWeekAfterStart, monthReferenceDate, weeksForCompetencia } from "@/lib/dates";
 import { listBonusAdjustmentsForWeeks, listEmployees, listWeeklyErrorsForWeeks, listWeeklyEvaluations } from "@/lib/data";
 import { financialAdjustmentTotal, monthlyBasePayment, monitorPayment, tenurePayment, totalAfterFinancialAdjustments } from "@/lib/money";
+import { summarizeReportRows } from "@/lib/report-selection";
 
 export type ReportRow = {
   employeeId: number;
@@ -119,18 +120,16 @@ export async function buildMonthlyReport(month: string): Promise<MonthlyReport> 
     });
   }
   rows.sort((left, right) => right.total - left.total || left.name.localeCompare(right.name, "pt-BR"));
-  const operation = rows.filter((row) => row.group === "Operação");
-  const weeklyExpected = operation.reduce((sum, row) => sum + row.eligibleWeeks, 0);
-  const weeklyDone = operation.reduce((sum, row) => sum + row.evaluatedWeeks, 0);
+  const summary = summarizeReportRows(rows);
   return {
     month,
     weeks,
     rows,
-    total: rows.reduce((sum, row) => sum + row.total, 0),
-    pending: rows.filter((row) => row.status === "Pendente").length,
-    coverage: weeklyExpected ? (weeklyDone / weeklyExpected) * 100 : 0,
-    weeklyExpected,
-    weeklyDone,
+    total: summary.total,
+    pending: summary.pending,
+    coverage: summary.coverage,
+    weeklyExpected: summary.weeklyExpected,
+    weeklyDone: summary.weeklyDone,
   };
 }
 

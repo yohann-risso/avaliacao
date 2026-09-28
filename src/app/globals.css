@@ -178,6 +178,17 @@ small { line-height: 1.35; }
 .filter-bar { display: flex; align-items: flex-end; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.76); box-shadow: var(--shadow-sm); }
 .filter-bar.wrap { flex-wrap: wrap; }
 .filter-bar.embedded { margin: 0 20px 14px; box-shadow: none; background: var(--surface-soft); }
+.sector-filter { position: relative; min-width: 220px !important; }
+.multi-select-control { position: relative; }
+.multi-select-control summary { min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: white; font-size: .78rem; cursor: pointer; list-style: none; }
+.multi-select-control summary::-webkit-details-marker { display: none; }
+.multi-select-control summary svg { flex: 0 0 auto; color: var(--muted); transition: transform .16s ease; }
+.multi-select-control[open] summary { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47,111,237,.11); }
+.multi-select-control[open] summary svg { transform: rotate(180deg); }
+.multi-select-menu { position: absolute; z-index: 20; top: calc(100% + 7px); right: 0; width: max(100%, 280px); max-height: 290px; padding: 8px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; background: white; box-shadow: var(--shadow-md); }
+.multi-select-menu .check { min-height: 34px; padding: 6px 8px; border-radius: 7px; font-size: .72rem; cursor: pointer; }
+.multi-select-menu .check:hover { background: var(--surface-soft); }
+.multi-select-menu > small { display: block; padding: 7px 8px 3px; color: var(--muted); font-size: .62rem; line-height: 1.35; }
 .filter-context { margin: 0 4px 9px auto; color: var(--muted); font-size: .7rem; font-weight: 700; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 18px; }
 .toolbar .field { min-width: 180px; grid-column: auto; }
@@ -466,6 +477,8 @@ details.edit-row[open] { min-width: min(880px, 80vw); }
   .user-pill { display: none; }
   .filter-bar { align-items: stretch; flex-direction: column; }
   .filter-bar .field, .field.compact, .field.compact.grow { width: 100%; min-width: 0; }
+  .sector-filter { min-width: 0 !important; }
+  .multi-select-menu { position: static; width: 100%; margin-top: 7px; box-shadow: var(--shadow-sm); }
   .filter-context { margin: 2px 0; }
   .overview-hero { grid-template-columns: 1fr; }
   .coverage-gauge { width: 105px; height: 105px; }

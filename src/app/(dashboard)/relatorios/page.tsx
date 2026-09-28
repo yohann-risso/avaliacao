@@ -1,30 +1,47 @@
 import Link from "next/link";
-import { Banknote, Check, CircleAlert, Download, FileCheck2, FileText, Search, Star, TriangleAlert, Users } from "lucide-react";
+import { Banknote, Check, ChevronDown, CircleAlert, Download, FileCheck2, FileText, Search, Star, TriangleAlert, Users } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { currentMonth, dateBr, monthBr } from "@/lib/dates";
 import { brl, pct } from "@/lib/money";
+import { filterReportRows, firstSearchParam, normalizeSectorSelection, reportExportQuery, summarizeReportRows } from "@/lib/report-selection";
 import { buildMonthlyReport } from "@/lib/report";
+
+type ReportSearchParams = {
+  month?: string | string[];
+  q?: string | string[];
+  sector?: string | string[];
+};
 
 export default async function ReportsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; q?: string; sector?: string }>;
+  searchParams: Promise<ReportSearchParams>;
 }) {
   const [user, params] = await Promise.all([requireAdmin(), searchParams]);
-  const month = /^\d{4}-\d{2}$/.test(params.month || "") ? String(params.month) : currentMonth();
+  const requestedMonth = firstSearchParam(params.month);
+  const month = /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : currentMonth();
   const report = await buildMonthlyReport(month);
   const sectors = [...new Set(report.rows.map((row) => row.sector))].sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const query = String(params.q || "").trim().toLocaleLowerCase("pt-BR");
-  const sector = String(params.sector || "");
-  const rows = report.rows.filter((row) => (!query || `${row.name} ${row.role} ${row.sector}`.toLocaleLowerCase("pt-BR").includes(query)) && (!sector || row.sector === sector));
-  const filteredTotal = rows.reduce((sum, row) => sum + row.total, 0);
-  const monitorTotal = report.rows.reduce((sum, row) => sum + row.monitorPayment, 0);
-  const adjustmentTotal = report.rows.reduce((sum, row) => sum + row.adjustmentTotal, 0);
-  const ruleDiscount = report.rows.reduce((sum, row) => sum + row.ruleDiscount, 0);
-  const recurrenceBlocks = report.rows.filter((row) => row.ruleImpact.includes("bloqueado")).length;
-  const ready = report.pending === 0 && report.coverage >= 100;
+  const selectedSectors = normalizeSectorSelection(params.sector).filter((sector) => sectors.includes(sector));
+  const query = firstSearchParam(params.q).trim();
+  const rows = filterReportRows(report.rows, selectedSectors, query);
+  const summary = summarizeReportRows(rows);
+  const hasFilters = Boolean(selectedSectors.length || query);
+  const exportQuery = reportExportQuery(month, selectedSectors, query);
+  const sectorSelectionLabel = selectedSectors.length === 0
+    ? "Todos os setores"
+    : selectedSectors.length === 1 ? selectedSectors[0] : `${selectedSectors.length} setores selecionados`;
+  const ready = rows.length > 0 && summary.pending === 0 && (summary.weeklyExpected === 0 || summary.coverage >= 100);
+  const closingTitle = !rows.length
+    ? "Nenhuma pessoa nos filtros selecionados"
+    : ready ? "Competência pronta para exportação" : "Competência ainda requer atenção";
+  const closingDescription = !rows.length
+    ? "Altere os setores ou a busca para gerar o fechamento."
+    : ready
+      ? "As semanas elegíveis da seleção estão cobertas. Faça a conferência final e gere os arquivos."
+      : `${summary.pending} pessoa(s) da seleção têm semanas pendentes. Complete as avaliações antes da conferência final.`;
 
   return (
     <>
@@ -32,32 +49,32 @@ export default async function ReportsPage({
 
       <form method="get" className="filter-bar">
         <div className="field compact"><label>Competência</label><input type="month" name="month" defaultValue={month} /></div>
-        <div className="field compact grow with-icon"><label>Buscar</label><Search size={16} /><input name="q" defaultValue={params.q} placeholder="Nome, função ou setor" /></div>
-        <div className="field compact"><label>Setor</label><select name="sector" defaultValue={sector}><option value="">Todos</option>{sectors.map((item) => <option key={item}>{item}</option>)}</select></div>
+        <div className="field compact grow with-icon"><label>Buscar</label><Search size={16} /><input name="q" defaultValue={query} placeholder="Nome, função ou setor" /></div>
+        <div className="field compact sector-filter"><label>Setores</label><details className="multi-select-control"><summary>{sectorSelectionLabel}<ChevronDown size={15} /></summary><div className="multi-select-menu">{sectors.map((item) => <label className="check" key={item}><input type="checkbox" name="sector" value={item} defaultChecked={selectedSectors.includes(item)} /><span>{item}</span></label>)}<small>Sem seleção, todos os setores serão incluídos.</small></div></details></div>
         <button className="button secondary" type="submit">Aplicar filtros</button>
       </form>
 
       <section className={`closing-banner ${ready ? "ready" : "pending"}`}>
         <span className="closing-banner-icon">{ready ? <Check size={25} /> : <CircleAlert size={25} />}</span>
-        <div><p className="eyebrow">Status de {monthBr(month)}</p><h2>{ready ? "Competência pronta para exportação" : "Competência ainda requer atenção"}</h2><p>{ready ? "As quatro semanas estão cobertas. Faça a conferência final e gere os arquivos." : `${report.pending} pessoa(s) têm semanas pendentes. Complete as avaliações antes da conferência final.`}</p></div>
-        <div className="actions"><Link className="button secondary" href={`/api/export/relatorio.csv?month=${month}`}><Download size={16} /> CSV</Link><Link className="button primary" href={`/api/export/relatorio-pdf?month=${month}`}><FileText size={16} /> PDF executivo</Link></div>
+        <div><p className="eyebrow">Status de {monthBr(month)} · {sectorSelectionLabel}</p><h2>{closingTitle}</h2><p>{closingDescription}</p></div>
+        <div className="actions"><a className="button secondary" href={`/api/export/relatorio.csv?${exportQuery}`}><Download size={16} /> CSV</a><a className="button primary" href={`/api/export/relatorio-pdf?${exportQuery}`}><FileText size={16} /> PDF executivo</a></div>
       </section>
 
       <div className="closing-steps section">
-        <article className={report.coverage >= 100 ? "done" : "active"}><span>{report.coverage >= 100 ? <Check size={16} /> : "1"}</span><div><strong>Cobertura</strong><small>{report.weeklyDone}/{report.weeklyExpected} avaliações</small></div></article>
-        <article className={recurrenceBlocks ? "active" : "done"}><span>{recurrenceBlocks ? "2" : <Check size={16} />}</span><div><strong>Ocorrências</strong><small>{recurrenceBlocks ? `${recurrenceBlocks} bloqueio(s) A01` : "Regras consolidadas"}</small></div></article>
+        <article className={summary.weeklyExpected === 0 || summary.coverage >= 100 ? "done" : "active"}><span>{summary.weeklyExpected === 0 || summary.coverage >= 100 ? <Check size={16} /> : "1"}</span><div><strong>Cobertura</strong><small>{summary.weeklyDone}/{summary.weeklyExpected} avaliações</small></div></article>
+        <article className={summary.recurrenceBlocks ? "active" : "done"}><span>{summary.recurrenceBlocks ? "2" : <Check size={16} />}</span><div><strong>Ocorrências</strong><small>{summary.recurrenceBlocks ? `${summary.recurrenceBlocks} bloqueio(s) A01` : "Regras consolidadas"}</small></div></article>
         <article className="done"><span><Check size={16} /></span><div><strong>Adicionais</strong><small>Monitoria, tempo e ajustes manuais</small></div></article>
         <article className={ready ? "active" : "locked"}><span>4</span><div><strong>Exportação</strong><small>{ready ? "Pronta para gerar" : "Aguardando cobertura"}</small></div></article>
       </div>
 
       <div className="metric-grid section">
-        <article className="metric-card"><span className={`metric-icon ${report.coverage >= 100 ? "green" : "amber"}`}><Users size={19} /></span><div><small>Cobertura semanal</small><strong>{pct(report.coverage)}</strong><p>4 semanas fixas</p></div></article>
-        <article className="metric-card"><span className="metric-icon amber"><TriangleAlert size={19} /></span><div><small>Descontos por regras</small><strong>{brl(ruleDiscount)}</strong><p>Valor efetivamente aplicado</p></div></article>
-        <article className="metric-card"><span className={`metric-icon ${adjustmentTotal < 0 ? "amber" : "green"}`}><Star size={19} /></span><div><small>Ajustes manuais</small><strong className={adjustmentTotal < 0 ? "danger-text" : "success-text"}>{adjustmentTotal > 0 ? "+" : adjustmentTotal < 0 ? "−" : ""}{brl(Math.abs(adjustmentTotal))}</strong><p>Monitoria fixa à parte: {brl(monitorTotal)}</p></div></article>
-        <article className="metric-card"><span className="metric-icon blue"><Banknote size={19} /></span><div><small>Total {sector || query ? "filtrado" : "da competência"}</small><strong>{brl(sector || query ? filteredTotal : report.total)}</strong><p>{rows.length} pessoas na visão</p></div></article>
+        <article className="metric-card"><span className={`metric-icon ${summary.weeklyExpected === 0 || summary.coverage >= 100 ? "green" : "amber"}`}><Users size={19} /></span><div><small>Cobertura semanal</small><strong>{pct(summary.coverage)}</strong><p>Seleção atual</p></div></article>
+        <article className="metric-card"><span className="metric-icon amber"><TriangleAlert size={19} /></span><div><small>Descontos por regras</small><strong>{brl(summary.ruleDiscount)}</strong><p>Valor efetivamente aplicado</p></div></article>
+        <article className="metric-card"><span className={`metric-icon ${summary.adjustmentTotal < 0 ? "amber" : "green"}`}><Star size={19} /></span><div><small>Ajustes manuais</small><strong className={summary.adjustmentTotal < 0 ? "danger-text" : "success-text"}>{summary.adjustmentTotal > 0 ? "+" : summary.adjustmentTotal < 0 ? "−" : ""}{brl(Math.abs(summary.adjustmentTotal))}</strong><p>Monitoria fixa à parte: {brl(summary.monitorTotal)}</p></div></article>
+        <article className="metric-card"><span className="metric-icon blue"><Banknote size={19} /></span><div><small>Total {hasFilters ? "filtrado" : "da competência"}</small><strong>{brl(summary.total)}</strong><p>{rows.length} pessoas na visão</p></div></article>
       </div>
 
-      {report.pending ? <section className="section panel attention-panel"><div><span className="metric-icon amber"><CircleAlert size={19} /></span><div><p className="eyebrow">Pendências antes de exportar</p><h2>{report.pending} pessoa(s) precisam de avaliação</h2></div></div><div className="pending-chips">{report.rows.filter((row) => row.status === "Pendente").slice(0, 10).map((row) => <Link href={`/avaliacoes?employee=${row.employeeId}`} key={row.employeeId}>{row.name}<span>{row.missingWeeks} semana(s)</span></Link>)}</div></section> : null}
+      {summary.pending ? <section className="section panel attention-panel"><div><span className="metric-icon amber"><CircleAlert size={19} /></span><div><p className="eyebrow">Pendências antes de exportar</p><h2>{summary.pending} pessoa(s) precisam de avaliação</h2></div></div><div className="pending-chips">{rows.filter((row) => row.status === "Pendente").slice(0, 10).map((row) => <Link href={`/avaliacoes?employee=${row.employeeId}`} key={row.employeeId}>{row.name}<span>{row.missingWeeks} semana(s)</span></Link>)}</div></section> : null}
 
       <section className="section panel flush-panel">
         <div className="panel-head padded"><div><p className="eyebrow">Memória de cálculo</p><h2>Consolidado de {monthBr(month)}</h2><p>Semanas: {report.weeks.map((week, index) => `S${index + 1} ${dateBr(week)}`).join(" · ")}</p></div><span className="badge">{rows.length} pessoas</span></div>
