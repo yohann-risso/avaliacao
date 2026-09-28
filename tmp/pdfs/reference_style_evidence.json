@@ -1,0 +1,141 @@
+{
+  "input": "C:\\Users\\yohan\\Desktop\\Python\\avaliacao\\tmp\\pdfs\\reference_regras.docx",
+  "fonts_by_char_count": {},
+  "direct_run_formatting_runs": 122,
+  "direct_paragraph_formatting_paragraphs": 0,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 1,
+      "text": "Guia resumido de avalia\u00e7\u00e3o e bonifica\u00e7\u00e3o",
+      "style": "Normal"
+    },
+    {
+      "para_index": 33,
+      "text": "Etapa",
+      "style": "Normal"
+    },
+    {
+      "para_index": 34,
+      "text": "O que acontece",
+      "style": "Normal"
+    },
+    {
+      "para_index": 43,
+      "text": "Crit\u00e9rio",
+      "style": "Normal"
+    },
+    {
+      "para_index": 44,
+      "text": "O que \u00e9 observado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 45,
+      "text": "Valor mensal m\u00e1ximo",
+      "style": "Normal"
+    },
+    {
+      "para_index": 64,
+      "text": "Resultado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 65,
+      "text": "Significado geral",
+      "style": "Normal"
+    },
+    {
+      "para_index": 74,
+      "text": "Resultado no crit\u00e9rio",
+      "style": "Normal"
+    },
+    {
+      "para_index": 75,
+      "text": "Percentual pago daquele crit\u00e9rio",
+      "style": "Normal"
+    },
+    {
+      "para_index": 86,
+      "text": "Exemplo simples",
+      "style": "Normal"
+    },
+    {
+      "para_index": 87,
+      "text": "Resultado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 94,
+      "text": "Gravidade",
+      "style": "Normal"
+    },
+    {
+      "para_index": 95,
+      "text": "Impacto esperado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 104,
+      "text": "Crit\u00e9rio de monitoria",
+      "style": "Normal"
+    },
+    {
+      "para_index": 105,
+      "text": "Peso",
+      "style": "Normal"
+    },
+    {
+      "para_index": 106,
+      "text": "Valor mensal m\u00e1ximo",
+      "style": "Normal"
+    },
+    {
+      "para_index": 122,
+      "text": "Regra",
+      "style": "Normal"
+    },
+    {
+      "para_index": 123,
+      "text": "Valor",
+      "style": "Normal"
+    },
+    {
+      "para_index": 126,
+      "text": "Tempo de empresa",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_run_formatting": [
+      {
+        "para_index": 1,
+        "run_text": "Guia resumido de avalia\u00e7\u00e3o e bonifica\u00e7\u00e3o",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "run_text": "Uso interno - Abril/2026",
+        "style": "Normal"
+      },
+      {
+        "para_index": 33,
+        "run_text": "Etapa",
+        "style": "Normal"
+      },
+      {
+        "para_index": 34,
+        "run_text": "O que acontece",
+        "style": "Normal"
+      },
+      {
+        "para_index": 35,
+        "run_text": "Avalia\u00e7\u00e3o semanal",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

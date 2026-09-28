@@ -1,0 +1,160 @@
+{
+  "input": "C:\\Users\\yohan\\Desktop\\Python\\avaliacao\\output\\docx\\Kaisan_Avaliacao_e_Bonificacao_Corte_Estoque_Ajustado.docx",
+  "fonts_by_char_count": {
+    "Arial": 5767
+  },
+  "direct_run_formatting_runs": 206,
+  "direct_paragraph_formatting_paragraphs": 173,
+  "heading_like_paragraphs_not_heading_style": [
+    {
+      "para_index": 13,
+      "text": "Tabela de regras, ocorr\u00eancias e descontos",
+      "style": "Normal"
+    },
+    {
+      "para_index": 18,
+      "text": "Valida\u00e7\u00e3o e ci\u00eancia",
+      "style": "Normal"
+    },
+    {
+      "para_index": 20,
+      "text": "Quesito",
+      "style": "Normal"
+    },
+    {
+      "para_index": 21,
+      "text": "O que \u00e9 observado",
+      "style": "Normal"
+    },
+    {
+      "para_index": 22,
+      "text": "Valor m\u00e1ximo",
+      "style": "Normal"
+    },
+    {
+      "para_index": 41,
+      "text": "C\u00f3digo",
+      "style": "Normal"
+    },
+    {
+      "para_index": 42,
+      "text": "Categoria",
+      "style": "Normal"
+    },
+    {
+      "para_index": 43,
+      "text": "Motivo / ocorr\u00eancia",
+      "style": "Normal"
+    },
+    {
+      "para_index": 44,
+      "text": "Pontos",
+      "style": "Normal"
+    },
+    {
+      "para_index": 45,
+      "text": "Diretriz corporativa",
+      "style": "Normal"
+    },
+    {
+      "para_index": 146,
+      "text": "Resultado atingido no quesito",
+      "style": "Normal"
+    },
+    {
+      "para_index": 147,
+      "text": "Parcela do valor paga",
+      "style": "Normal"
+    },
+    {
+      "para_index": 158,
+      "text": "Componente",
+      "style": "Normal"
+    },
+    {
+      "para_index": 159,
+      "text": "Regra vigente",
+      "style": "Normal"
+    },
+    {
+      "para_index": 160,
+      "text": "Valor",
+      "style": "Normal"
+    },
+    {
+      "para_index": 173,
+      "text": "_______________________________\nSUP. ROBSON\nRespons\u00e1vel pelo Corte",
+      "style": "Normal"
+    },
+    {
+      "para_index": 174,
+      "text": "_______________________________\nSUP. GABRIEL\nRespons\u00e1vel pelo Estoque de Tecido",
+      "style": "Normal"
+    },
+    {
+      "para_index": 176,
+      "text": "_______________________________\nCI\u00caNCIA DO COLABORADOR\nAssinatura do funcion\u00e1rio",
+      "style": "Normal"
+    }
+  ],
+  "examples": {
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 1,
+        "text": "kaisan\nUSO INTERNO | 2026\n\nAvalia\u00e7\u00e3o e Bonifica\u00e7\u00e3o\nCrit\u00e9rios, exemplos pr\u00e1ticos, ocorr\u00eancias e valores de refer\u00eancia par",
+        "style": "Title"
+      },
+      {
+        "para_index": 2,
+        "text": "Objetivo da avalia\u00e7\u00e3o\nReconhecer o bom desempenho, alinhar expectativas e orientar melhorias de forma clara. A avalia\u00e7\u00e3o",
+        "style": "Normal"
+      },
+      {
+        "para_index": 3,
+        "text": "Valores por quesito\nCada quesito \u00e9 avaliado separadamente e possui um valor m\u00e1ximo mensal. O b\u00f4nus-base mensal considera",
+        "style": "Normal"
+      },
+      {
+        "para_index": 4,
+        "text": "Importante:\nUm bom resultado em um quesito n\u00e3o substitui automaticamente outro. Produtividade alta, por exemplo, n\u00e3o eli",
+        "style": "Normal"
+      },
+      {
+        "para_index": 6,
+        "text": "O que significa cada quesito\nExemplos aplicados aos setores de Corte e Estoque.",
+        "style": "Normal"
+      }
+    ],
+    "direct_run_formatting": [
+      {
+        "para_index": 1,
+        "run_text": "kaisan",
+        "style": "Title"
+      },
+      {
+        "para_index": 1,
+        "run_text": "USO INTERNO | 2026",
+        "style": "Title"
+      },
+      {
+        "para_index": 1,
+        "run_text": "Avalia\u00e7\u00e3o e Bonifica\u00e7\u00e3o",
+        "style": "Title"
+      },
+      {
+        "para_index": 1,
+        "run_text": "Crit\u00e9rios, exemplos pr\u00e1ticos, ocorr\u00eancias e valores de refer\u00eancia para colaborad",
+        "style": "Title"
+      },
+      {
+        "para_index": 2,
+        "run_text": "Objetivo da avalia\u00e7\u00e3o",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}
