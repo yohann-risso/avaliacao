@@ -6,6 +6,7 @@ import { createSession, clearSession, hashPassword, normalizeUsername, verifyPas
 import { sql } from "@/lib/db";
 import { loginUserCount } from "@/lib/data";
 import { publicError, raw, text } from "@/lib/action-utils";
+import type { UserRole } from "@/lib/types";
 
 export type AuthState = { error: string };
 
@@ -17,7 +18,7 @@ export async function loginAction(_state: AuthState, formData: FormData): Promis
     const rows = await sql<{
       id: number;
       password_hash: string;
-      role: "admin" | "avaliador";
+      role: UserRole;
       active: number;
     }[]>`
       select id, password_hash, role, active

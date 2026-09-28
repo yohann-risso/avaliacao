@@ -3,9 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { checkbox, integer, publicError, redirectWith, text } from "@/lib/action-utils";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requirePeopleManager } from "@/lib/auth";
 import { todayBrazil } from "@/lib/dates";
 import { sql } from "@/lib/db";
+import { requireEvaluatorManagementAccess, requireManagedEmployeeAccess } from "@/lib/employee-access";
+import type { AppUser } from "@/lib/types";
 
 type EmployeePayload = {
   name: string;
@@ -43,16 +45,11 @@ function employeePayload(formData: FormData): EmployeePayload {
   return payload;
 }
 
-async function validateEvaluatorLink(employeeId: number | undefined, evaluatorEmployeeId: number): Promise<number> {
+async function validateEvaluatorLink(user: AppUser, employeeId: number | undefined, evaluatorEmployeeId: number): Promise<number> {
   if (employeeId && evaluatorEmployeeId === employeeId) {
     throw new Error("Uma liderança não pode ser vinculada a ela mesma.");
   }
-  const rows = await sql<{ id: number }[]>`
-    select id from employees
-    where id = ${evaluatorEmployeeId} and active = 1 and coalesce(is_leadership, 0) = 1
-    limit 1
-  `;
-  if (!rows[0]) throw new Error("Selecione um avaliador ativo de coordenação/supervisão.");
+  const validatedId = await requireEvaluatorManagementAccess(user, evaluatorEmployeeId);
   if (employeeId) {
     const cycle = await sql<{ id: number }[]>`
       with recursive descendants(id) as (
@@ -66,10 +63,10 @@ async function validateEvaluatorLink(employeeId: number | undefined, evaluatorEm
     `;
     if (cycle[0]) throw new Error("Esse vínculo criaria um ciclo na hierarquia de avaliadores.");
   }
-  return rows[0].id;
+  return validatedId;
 }
 
-async function validatedEvaluatorId(item: EmployeePayload, employeeId?: number): Promise<number | null> {
+async function validatedEvaluatorId(user: AppUser, item: EmployeePayload, employeeId?: number): Promise<number | null> {
   if (employeeId && !item.isLeadership) {
     const subordinates = await sql<{ id: number }[]>`
       select id from employees where evaluator_employee_id = ${employeeId} limit 1
@@ -77,7 +74,7 @@ async function validatedEvaluatorId(item: EmployeePayload, employeeId?: number):
     if (subordinates[0]) throw new Error("Reatribua a equipe antes de remover o perfil de coordenação/supervisão.");
   }
   if (!item.evaluatorEmployeeId) return null;
-  return validateEvaluatorLink(employeeId, item.evaluatorEmployeeId);
+  return validateEvaluatorLink(user, employeeId, item.evaluatorEmployeeId);
 }
 
 function revalidateEmployeeScopePaths(): void {
@@ -87,10 +84,13 @@ function revalidateEmployeeScopePaths(): void {
 }
 
 export async function createEmployeeAction(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requirePeopleManager();
   try {
     const item = employeePayload(formData);
-    const evaluatorEmployeeId = await validatedEvaluatorId(item);
+    if (actor.role === "supervisor" && !item.evaluatorEmployeeId) {
+      throw new Error("Selecione uma liderança responsável da sua equipe.");
+    }
+    const evaluatorEmployeeId = await validatedEvaluatorId(actor, item);
     const now = new Date().toISOString();
     const active = item.terminationDate && item.terminationDate <= todayBrazil() ? 0 : 1;
     await sql`
@@ -115,12 +115,16 @@ export async function createEmployeeAction(formData: FormData): Promise<void> {
 }
 
 export async function updateEmployeeAction(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requirePeopleManager();
   try {
     const id = integer(formData, "id");
     if (!id) throw new Error("Funcionário inválido.");
+    await requireManagedEmployeeAccess(actor, id);
     const item = employeePayload(formData);
-    const evaluatorEmployeeId = await validatedEvaluatorId(item, id);
+    if (actor.role === "supervisor" && !item.evaluatorEmployeeId) {
+      throw new Error("Selecione uma liderança responsável da sua equipe.");
+    }
+    const evaluatorEmployeeId = await validatedEvaluatorId(actor, item, id);
     const now = new Date().toISOString();
     const active = item.terminationDate && item.terminationDate <= todayBrazil() ? 0 : 1;
     await sql`
@@ -143,11 +147,18 @@ export async function updateEmployeeAction(formData: FormData): Promise<void> {
 }
 
 export async function toggleEmployeeAction(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requirePeopleManager();
   try {
     const id = integer(formData, "id");
     const nextActive = integer(formData, "active") === 1;
     if (!id) throw new Error("Funcionário inválido.");
+    await requireManagedEmployeeAccess(actor, id);
+    if (!nextActive) {
+      const subordinates = await sql<{ id: number }[]>`
+        select id from employees where evaluator_employee_id = ${id} and active = 1 limit 1
+      `;
+      if (subordinates[0]) throw new Error("Reatribua a equipe antes de desativar esta liderança.");
+    }
     const now = new Date().toISOString();
     await sql`
       update employees set active = ${nextActive ? 1 : 0},
@@ -164,7 +175,7 @@ export async function toggleEmployeeAction(formData: FormData): Promise<void> {
 }
 
 export async function saveEmployeeEvaluatorLinkAction(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requirePeopleManager();
   try {
     const employeeId = integer(formData, "employee_id");
     const evaluatorEmployeeId = integer(formData, "evaluator_employee_id");
@@ -173,7 +184,8 @@ export async function saveEmployeeEvaluatorLinkAction(formData: FormData): Promi
       select id from employees where id = ${employeeId} and active = 1 limit 1
     `;
     if (!employees[0]) throw new Error("A pessoa selecionada está inativa ou não existe.");
-    const validatedId = await validateEvaluatorLink(employeeId, evaluatorEmployeeId);
+    if (actor.role === "supervisor") await requireManagedEmployeeAccess(actor, employeeId);
+    const validatedId = await validateEvaluatorLink(actor, employeeId, evaluatorEmployeeId);
     await sql`
       update employees set evaluator_employee_id = ${validatedId},
         updated_by_user_id = ${actor.id}, updated_by_username = ${actor.username},

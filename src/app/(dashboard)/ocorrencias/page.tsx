@@ -10,6 +10,7 @@ import { currentMonth, dateBr, monthBr, weeksForCompetencia } from "@/lib/dates"
 import { listActiveEmployees, listOccurrenceRowsForWeeks } from "@/lib/data";
 import { employeesVisibleTo } from "@/lib/employee-access";
 import { brl } from "@/lib/money";
+import { userRoleLabel } from "@/lib/permissions";
 import { getEvaluationRule, type RuleCategory } from "@/lib/rules";
 
 export default async function OccurrencesPage({
@@ -45,7 +46,7 @@ export default async function OccurrencesPage({
 
   return (
     <>
-      <PageHeader step="Controle de impacto" title="Central de ocorrências" subtitle="Registre, investigue e acompanhe todas as regras que afetam a bonificação." icon={TriangleAlert} user={`${user.username} · ${user.role}`} />
+      <PageHeader step="Controle de impacto" title="Central de ocorrências" subtitle="Registre, investigue e acompanhe todas as regras que afetam a bonificação." icon={TriangleAlert} user={`${user.username} · ${userRoleLabel(user.role)}`} />
       <Notice success={params.success} error={params.error} />
 
       <form method="get" className="filter-bar wrap">

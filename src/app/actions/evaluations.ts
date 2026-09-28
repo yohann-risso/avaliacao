@@ -9,11 +9,12 @@ import { WEEKLY_CRITERIA } from "@/lib/constants";
 import { normalizeMonday } from "@/lib/dates";
 import { sql } from "@/lib/db";
 import { requireEmployeeAccess, requireEmployeesAccess } from "@/lib/employee-access";
+import { isTeamScopedRole } from "@/lib/permissions";
 import { getEvaluationRule } from "@/lib/rules";
 import type { AppUser } from "@/lib/types";
 
 async function authorizedEvaluatorName(user: AppUser, requested: string): Promise<string> {
-  if (user.role === "avaliador") {
+  if (isTeamScopedRole(user.role)) {
     if (!user.evaluator_name) throw new Error("Seu usuário não está vinculado a um avaliador ativo.");
     return user.evaluator_name;
   }
@@ -244,7 +245,7 @@ export async function deleteWeeklyOccurrenceAction(formData: FormData): Promise<
   try {
     const id = integer(formData, "id");
     if (!id) throw new Error("Registro inválido.");
-    if (user.role === "avaliador") await requireEmployeeAccess(user, employeeId);
+    await requireEmployeeAccess(user, employeeId);
     await sql`delete from weekly_errors where id = ${id} and employee_id = ${employeeId}`;
   } catch (error) {
     redirectWith(path, "error", publicError(error));

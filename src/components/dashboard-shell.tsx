@@ -19,6 +19,7 @@ import {
 
 import { logoutAction } from "@/app/actions/auth";
 import type { DashboardStats } from "@/lib/data";
+import { canManagePeopleRole, userRoleLabel } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
 
 type NavItem = {
@@ -27,13 +28,14 @@ type NavItem = {
   detail: string;
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
   adminOnly?: boolean;
+  peopleManagerOnly?: boolean;
 };
 
 const mainNavigation: NavItem[] = [
   { href: "/visao-geral", label: "Visão geral", detail: "Ritmo da competência", icon: LayoutDashboard },
   { href: "/avaliacoes", label: "Avaliações", detail: "Cockpit semanal", icon: ClipboardCheck },
   { href: "/ocorrencias", label: "Ocorrências", detail: "Regras e impactos", icon: TriangleAlert },
-  { href: "/funcionarios", label: "Pessoas", detail: "Cadastro e histórico", icon: Users, adminOnly: true },
+  { href: "/funcionarios", label: "Pessoas", detail: "Cadastro e histórico", icon: Users, peopleManagerOnly: true },
   { href: "/relatorios", label: "Fechamento", detail: "Conferência mensal", icon: FileCheck2, adminOnly: true },
 ];
 
@@ -56,7 +58,10 @@ export function DashboardShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const coverage = stats.weeklyExpected ? Math.round((stats.weeklyDone / stats.weeklyExpected) * 100) : 0;
-  const visibleMain = mainNavigation.filter((item) => !item.adminOnly || user.role === "admin");
+  const visibleMain = mainNavigation.filter((item) => (
+    (!item.adminOnly || user.role === "admin")
+    && (!item.peopleManagerOnly || canManagePeopleRole(user.role))
+  ));
   const visibleAdmin = adminNavigation.filter((item) => !item.adminOnly || user.role === "admin");
 
   function navLink(item: NavItem) {
@@ -101,7 +106,7 @@ export function DashboardShell({
 
         <div className="user-block">
           <span className="user-avatar">{user.username.slice(0, 2).toUpperCase()}</span>
-          <div><strong>{user.username}</strong><small>{user.role === "admin" ? "Administrador" : "Avaliador"}</small></div>
+          <div><strong>{user.username}</strong><small>{userRoleLabel(user.role)}</small></div>
           <form action={logoutAction}><button className="icon-button" type="submit" aria-label="Sair"><LogOut size={17} /></button></form>
         </div>
       </aside>

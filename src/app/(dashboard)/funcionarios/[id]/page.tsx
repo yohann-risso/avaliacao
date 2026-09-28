@@ -6,11 +6,13 @@ import { toggleEmployeeAction, updateEmployeeAction } from "@/app/actions/employ
 import { EmployeeFields } from "@/components/employee-fields";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
-import { requireAdmin } from "@/lib/auth";
+import { requirePeopleManager } from "@/lib/auth";
 import { WEEKLY_CRITERIA } from "@/lib/constants";
 import { currentMonth, dateBr, monthBr } from "@/lib/dates";
-import { getEmployee, listEvaluators, listRecentBonusAdjustments, listRecentWeeklyErrors, listRecentWeeklyEvaluations } from "@/lib/data";
+import { getEmployee, listEmployees, listRecentBonusAdjustments, listRecentWeeklyErrors, listRecentWeeklyEvaluations } from "@/lib/data";
+import { evaluatorsVisibleTo, requireManagedEmployeeAccess } from "@/lib/employee-access";
 import { brl, pct, totalAfterFinancialAdjustments, weeklyPaymentBreakdown } from "@/lib/money";
+import { userRoleLabel } from "@/lib/permissions";
 import { buildMonthlyReport } from "@/lib/report";
 import { getEvaluationRule } from "@/lib/rules";
 
@@ -19,10 +21,13 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const employeeId = Number(id);
   if (!Number.isInteger(employeeId) || employeeId < 1) notFound();
   const month = currentMonth();
-  const [user, employee, evaluators, evaluations, occurrences, adjustments, report] = await Promise.all([
-    requireAdmin(), getEmployee(employeeId), listEvaluators(), listRecentWeeklyEvaluations(employeeId), listRecentWeeklyErrors(employeeId), listRecentBonusAdjustments(employeeId), buildMonthlyReport(month),
+  const user = await requirePeopleManager();
+  await requireManagedEmployeeAccess(user, employeeId);
+  const [employee, allEmployees, evaluations, occurrences, adjustments, report] = await Promise.all([
+    getEmployee(employeeId), listEmployees(true), listRecentWeeklyEvaluations(employeeId), listRecentWeeklyErrors(employeeId), listRecentBonusAdjustments(employeeId), buildMonthlyReport(month),
   ]);
   if (!employee) notFound();
+  const evaluators = evaluatorsVisibleTo(user, allEmployees);
   const reportRow = report.rows.find((row) => row.employeeId === employee.id);
   const errorsByWeek = new Map<string, typeof occurrences>();
   for (const item of occurrences) {
@@ -42,7 +47,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   return (
     <>
       <Link className="back-link" href="/funcionarios"><ArrowLeft size={15} /> Voltar para pessoas</Link>
-      <PageHeader step={`Perfil #${employee.id}`} title={employee.name} subtitle={`${employee.sector} · ${employee.role}`} icon={UserRound} user={`Admin · ${user.username}`} />
+      <PageHeader step={`Perfil #${employee.id}`} title={employee.name} subtitle={`${employee.sector} · ${employee.role}`} icon={UserRound} user={`${userRoleLabel(user.role)} · ${user.username}`} />
 
       <section className="profile-hero">
         <span className="profile-avatar">{employee.name.slice(0, 2).toUpperCase()}</span>
@@ -83,7 +88,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       <section className="section">
         <details className="panel profile-edit-panel">
           <summary><span className="metric-icon blue"><Pencil size={18} /></span><span><strong>Editar dados e elegibilidade</strong><small>Altere função, datas, monitoria ou liderança.</small></span></summary>
-          <form action={updateEmployeeAction} className="details-form"><EmployeeFields employee={employee} evaluators={evaluators} /><div className="actions"><SubmitButton>Salvar alterações</SubmitButton></div></form>
+          <form action={updateEmployeeAction} className="details-form"><EmployeeFields employee={employee} evaluators={evaluators} allowUnlinked={user.role === "admin"} /><div className="actions"><SubmitButton>Salvar alterações</SubmitButton></div></form>
           <form action={toggleEmployeeAction} className="danger-zone"><input type="hidden" name="id" value={employee.id} /><input type="hidden" name="active" value={employee.active ? 0 : 1} /><div><strong>{employee.active ? "Desativar colaborador" : "Reativar colaborador"}</strong><p>{employee.active ? "O histórico será preservado e o colaborador sairá das filas futuras." : "O colaborador voltará às filas de avaliação."}</p></div><SubmitButton className={employee.active ? "button danger" : "button secondary"}>{employee.active ? "Desativar" : "Reativar"}</SubmitButton></form>
         </details>
       </section>

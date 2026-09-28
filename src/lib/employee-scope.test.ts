@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { employeesVisibleTo } from "@/lib/employee-scope";
+import { employeesVisibleTo, evaluatorsVisibleTo } from "@/lib/employee-scope";
 import type { AppUser, Employee } from "@/lib/types";
 
 const employees = [
@@ -34,7 +34,12 @@ describe("employeesVisibleTo", () => {
   });
 
   it("mantém o supervisor restrito à própria árvore", () => {
-    expect(employeesVisibleTo(user({ evaluator_employee_id: 20, evaluator_name: "Liderança 20" }), employees).map((employee) => employee.id)).toEqual([2, 4, 30]);
+    expect(employeesVisibleTo(user({ role: "supervisor", evaluator_employee_id: 20, evaluator_name: "Liderança 20" }), employees).map((employee) => employee.id)).toEqual([2, 4, 30]);
+  });
+
+  it("oferece ao supervisor somente as lideranças da própria árvore", () => {
+    const activeEmployees = employees.map((employee) => ({ ...employee, active: 1 })) as Employee[];
+    expect(evaluatorsVisibleTo(user({ role: "supervisor", evaluator_employee_id: 20, evaluator_name: "Liderança 20" }), activeEmployees).map((employee) => employee.id)).toEqual([20, 30]);
   });
 
   it("não mostra funcionários quando o vínculo do login está ausente ou inativo", () => {

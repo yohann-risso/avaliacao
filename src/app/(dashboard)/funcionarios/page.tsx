@@ -7,16 +7,21 @@ import { EmployeesTabs } from "@/components/employees-tabs";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
-import { requireAdmin } from "@/lib/auth";
+import { requirePeopleManager } from "@/lib/auth";
 import { dateBr } from "@/lib/dates";
-import { listEmployees, listEvaluators } from "@/lib/data";
+import { listEmployees } from "@/lib/data";
+import { employeesVisibleTo, evaluatorsVisibleTo } from "@/lib/employee-access";
+import { userRoleLabel } from "@/lib/permissions";
 
 export default async function EmployeesPage({
   searchParams,
 }: {
   searchParams: Promise<{ q?: string; sector?: string; status?: string; success?: string; error?: string }>;
 }) {
-  const [user, employees, evaluators, params] = await Promise.all([requireAdmin(), listEmployees(true), listEvaluators(), searchParams]);
+  const [user, params] = await Promise.all([requirePeopleManager(), searchParams]);
+  const allEmployees = await listEmployees(true);
+  const employees = employeesVisibleTo(user, allEmployees);
+  const evaluators = evaluatorsVisibleTo(user, allEmployees);
   const query = String(params.q || "").trim().toLocaleLowerCase("pt-BR");
   const sector = String(params.sector || "");
   const status = String(params.status || "active");
@@ -26,7 +31,7 @@ export default async function EmployeesPage({
 
   return (
     <>
-      <PageHeader step="Base organizacional" title="Pessoas" subtitle="Cadastros, elegibilidade, perfis e histórico de performance." icon={Users} user={`Admin · ${user.username}`} />
+      <PageHeader step="Base organizacional" title="Pessoas" subtitle="Cadastros, elegibilidade, perfis e histórico de performance." icon={Users} user={`${userRoleLabel(user.role)} · ${user.username}`} />
       <EmployeesTabs active="people" />
       <Notice success={params.success} error={params.error} />
 
@@ -40,7 +45,7 @@ export default async function EmployeesPage({
       <section className="section">
         <details className="panel add-person-panel">
           <summary><span className="metric-icon blue"><Plus size={18} /></span><span><strong>Novo colaborador</strong><small>Abra para cadastrar e definir a elegibilidade.</small></span></summary>
-          <form action={createEmployeeAction} className="details-form"><EmployeeFields evaluators={evaluators} /><div className="actions"><SubmitButton>Cadastrar colaborador</SubmitButton></div></form>
+          <form action={createEmployeeAction} className="details-form"><EmployeeFields evaluators={evaluators} allowUnlinked={user.role === "admin"} /><div className="actions"><SubmitButton>Cadastrar colaborador</SubmitButton></div></form>
         </details>
       </section>
 

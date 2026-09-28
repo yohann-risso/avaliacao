@@ -12,6 +12,7 @@ import { requireUser } from "@/lib/auth";
 import { dateBr, normalizeMonday, todayBrazil } from "@/lib/dates";
 import { getWeeklyEvaluation, listActiveEmployees, listEvaluators, listWeeklyBonusAdjustments, listWeeklyErrors, listWeeklyEvaluations } from "@/lib/data";
 import { brl, financialAdjustmentTotal, weeklyPaymentBreakdown } from "@/lib/money";
+import { isTeamScopedRole, userRoleLabel } from "@/lib/permissions";
 import { getEvaluationRule, monthlyOccurrenceImpact, weeklyOccurrenceImpact } from "@/lib/rules";
 import { employeesVisibleTo } from "@/lib/employee-access";
 
@@ -38,8 +39,8 @@ export default async function EvaluationsPage({
   const [evaluation, occurrences, adjustments, weekEvaluations] = employeeId
     ? await Promise.all([getWeeklyEvaluation(employeeId, week), listWeeklyErrors(employeeId, week), listWeeklyBonusAdjustments(employeeId, week), listWeeklyEvaluations([week], employeeIds)])
     : [null, [], [], []];
-  const evaluatorNames = user.role === "avaliador" ? (user.evaluator_name ? [user.evaluator_name] : []) : evaluators.map((employee) => employee.name);
-  const selectedEvaluator = user.role === "avaliador"
+  const evaluatorNames = isTeamScopedRole(user.role) ? (user.evaluator_name ? [user.evaluator_name] : []) : evaluators.map((employee) => employee.name);
+  const selectedEvaluator = isTeamScopedRole(user.role)
     ? user.evaluator_name
     : String(evaluation?.evaluator || evaluatorNames[0] || "");
   const evaluatedByEmployee = new Map(weekEvaluations.map((item) => [item.employee_id, item]));
@@ -55,7 +56,7 @@ export default async function EvaluationsPage({
 
   return (
     <>
-      <PageHeader step="Operação semanal" title="Cockpit de avaliações" subtitle="Avalie, aplique regras e acompanhe o impacto sem sair da mesma tela." icon={ClipboardCheck} user={`${user.username} · ${user.role}`} />
+      <PageHeader step="Operação semanal" title="Cockpit de avaliações" subtitle="Avalie, aplique regras e acompanhe o impacto sem sair da mesma tela." icon={ClipboardCheck} user={`${user.username} · ${userRoleLabel(user.role)}`} />
       <Notice success={params.success} error={params.error} />
 
       <form method="get" className="filter-bar">
@@ -66,7 +67,7 @@ export default async function EvaluationsPage({
         <span className="filter-context">{completed}/{employees.length} concluídas</span>
       </form>
 
-      {!selected ? <div className="notice info">{user.role === "avaliador" ? "Nenhum funcionário ativo está vinculado ao seu avaliador." : "Cadastre ao menos um funcionário operacional ativo."}</div> : (
+      {!selected ? <div className="notice info">{isTeamScopedRole(user.role) ? "Nenhum funcionário ativo está vinculado à sua liderança." : "Cadastre ao menos um funcionário operacional ativo."}</div> : (
         <>
           <section className="employee-focus-bar">
             <span className="user-avatar large">{selected.name.slice(0, 2).toUpperCase()}</span>

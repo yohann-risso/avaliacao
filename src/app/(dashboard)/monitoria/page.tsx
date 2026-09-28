@@ -7,6 +7,7 @@ import { currentMonth, dateBr, isWeekAfterStart, monthBr, weeksForCompetencia } 
 import { listActiveEmployees } from "@/lib/data";
 import { employeesVisibleTo } from "@/lib/employee-access";
 import { brl } from "@/lib/money";
+import { userRoleLabel } from "@/lib/permissions";
 
 export default async function MonitoringPage({
   searchParams,
@@ -28,7 +29,7 @@ export default async function MonitoringPage({
         title="Adicional fixo de monitoria"
         subtitle="A monitoria não possui avaliação: todo monitor elegível recebe o valor fixo na competência."
         icon={Star}
-        user={`${user.username} · ${user.role}`}
+        user={`${user.username} · ${userRoleLabel(user.role)}`}
       />
       <form method="get" className="card toolbar">
         <div className="field"><label>Competência</label><input type="month" name="month" defaultValue={month} /></div>

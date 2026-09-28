@@ -2,12 +2,13 @@ import "server-only";
 
 import { sql } from "@/lib/db";
 import { weeksForCompetencia } from "@/lib/dates";
-import type { AppUser, BonusAdjustment, BonusAdjustmentWithEmployee, Employee, WeeklyError, WeeklyErrorWithEmployee, WeeklyEvaluation } from "@/lib/types";
+import { isTeamScopedRole } from "@/lib/permissions";
+import type { AppUser, BonusAdjustment, BonusAdjustmentWithEmployee, Employee, UserRole, WeeklyError, WeeklyErrorWithEmployee, WeeklyEvaluation } from "@/lib/types";
 
 export type LoginUserRow = {
   id: number;
   username: string;
-  role: "admin" | "avaliador";
+  role: UserRole;
   active: number;
   evaluator_employee_id: number | null;
   evaluator_name: string;
@@ -241,10 +242,10 @@ async function listHierarchyEmployeeIds(evaluatorEmployeeId: number): Promise<nu
 
 export async function getDashboardStats(month: string, user: AppUser): Promise<DashboardStats> {
   const weeks = weeksForCompetencia(month);
-  if (user.role === "avaliador" && (!user.evaluator_employee_id || !user.evaluator_name)) {
+  if (isTeamScopedRole(user.role) && (!user.evaluator_employee_id || !user.evaluator_name)) {
     return { activeEmployees: 0, userCount: 0, linkedUsers: 0, leadershipCount: 0, monitorCount: 0, weeklyDone: 0, weeklyExpected: 0, issues: 0 };
   }
-  const scopedEmployeeIds = user.role === "avaliador"
+  const scopedEmployeeIds = isTeamScopedRole(user.role)
     ? await listHierarchyEmployeeIds(Number(user.evaluator_employee_id))
     : undefined;
   if (scopedEmployeeIds && !scopedEmployeeIds.length) {

@@ -8,6 +8,7 @@ import { currentMonth, dateBr, monthBr, normalizeMonday, todayBrazil, weeksForCo
 import { listActiveEmployees, listOccurrenceRowsForWeeks, listWeeklyEvaluations } from "@/lib/data";
 import { employeesVisibleTo } from "@/lib/employee-access";
 import { brl, pct } from "@/lib/money";
+import { userRoleLabel } from "@/lib/permissions";
 import { buildMonthlyReport } from "@/lib/report";
 import { getEvaluationRule } from "@/lib/rules";
 
@@ -35,7 +36,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
 
   return (
     <>
-      <PageHeader step="Central operacional" title="Visão geral" subtitle="O que precisa de atenção agora para a competência fechar sem surpresas." icon={CalendarDays} user={`${user.username} · ${user.role}`} />
+      <PageHeader step="Central operacional" title="Visão geral" subtitle="O que precisa de atenção agora para a competência fechar sem surpresas." icon={CalendarDays} user={`${user.username} · ${userRoleLabel(user.role)}`} />
 
       <form method="get" className="filter-bar">
         <div className="field compact"><label>Competência</label><input type="month" name="month" defaultValue={month} /></div>

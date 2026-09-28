@@ -7,6 +7,7 @@ import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { jwtVerify, SignJWT } from "jose";
 
 import { sql } from "@/lib/db";
+import { canManagePeopleRole } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
 
 const COOKIE_NAME = "avaliacao_session";
@@ -102,7 +103,9 @@ export const currentUser = cache(async (): Promise<AppUser | null> => {
     left join employees e on e.id = u.evaluator_employee_id
       and e.active = 1
       and coalesce(e.is_leadership, 0) = 1
-    where u.id = ${userId} and u.active = 1
+    where u.id = ${userId}
+      and u.active = 1
+      and u.role in ('admin', 'supervisor', 'avaliador')
     limit 1
   `;
   return rows[0] ?? null;
@@ -117,5 +120,11 @@ export async function requireUser(): Promise<AppUser> {
 export async function requireAdmin(): Promise<AppUser> {
   const user = await requireUser();
   if (user.role !== "admin") redirect("/visao-geral");
+  return user;
+}
+
+export async function requirePeopleManager(): Promise<AppUser> {
+  const user = await requireUser();
+  if (!canManagePeopleRole(user.role)) redirect("/visao-geral");
   return user;
 }

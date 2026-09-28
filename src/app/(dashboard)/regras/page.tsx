@@ -5,12 +5,13 @@ import { requireUser } from "@/lib/auth";
 import { MONITOR_FIXED_VALUE } from "@/lib/constants";
 import { brl } from "@/lib/money";
 import { EVALUATION_RULES } from "@/lib/rules";
+import { userRoleLabel } from "@/lib/permissions";
 
 export default async function RulesPage() {
   const user = await requireUser();
   return (
     <>
-      <PageHeader step="Referência corporativa" title="Regras de bonificação" subtitle="Fonte única para códigos, ocorrências e descontos usados pelo cálculo." icon={BookOpenCheck} user={`${user.username} · ${user.role}`} />
+      <PageHeader step="Referência corporativa" title="Regras de bonificação" subtitle="Fonte única para códigos, ocorrências e descontos usados pelo cálculo." icon={BookOpenCheck} user={`${user.username} · ${userRoleLabel(user.role)}`} />
       <div className="metric-grid section">
         <article className="metric-card"><span className="metric-icon blue"><BookOpenCheck size={19} /></span><div><small>Regras ativas</small><strong>{EVALUATION_RULES.length}</strong><p>A01–A08, Q, P e C</p></div></article>
         <article className="metric-card"><span className="metric-icon amber"><Coins size={19} /></span><div><small>Interpretação de pontos</small><strong>Desconto</strong><p>Referência monetária por semana</p></div></article>
