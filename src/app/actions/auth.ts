@@ -10,7 +10,7 @@ import { publicError, raw, text } from "@/lib/action-utils";
 export type AuthState = { error: string };
 
 export async function loginAction(_state: AuthState, formData: FormData): Promise<AuthState> {
-  let destination = "/avaliacoes";
+  const destination = "/visao-geral";
   try {
     const username = normalizeUsername(text(formData, "username"));
     const password = raw(formData, "password");
@@ -31,7 +31,6 @@ export async function loginAction(_state: AuthState, formData: FormData): Promis
     }
     await sql`update login_users set last_login_at = ${new Date().toISOString()} where id = ${user.id}`;
     await createSession(user.id);
-    destination = user.role === "admin" ? "/funcionarios" : "/avaliacoes";
   } catch (error) {
     return { error: publicError(error) };
   }
@@ -54,7 +53,7 @@ export async function createInitialAdminAction(_state: AuthState, formData: Form
   } catch (error) {
     return { error: publicError(error) };
   }
-  redirect("/funcionarios");
+  redirect("/visao-geral");
 }
 
 export async function logoutAction(): Promise<void> {

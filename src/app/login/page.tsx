@@ -1,20 +1,21 @@
 import { redirect } from "next/navigation";
 import { AuthForm } from "@/components/auth-form";
 import { currentUser } from "@/lib/auth";
+import { publicError } from "@/lib/action-utils";
 import { loginUserCount } from "@/lib/data";
 
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
   const user = await currentUser();
-  if (user) redirect(user.role === "admin" ? "/funcionarios" : "/avaliacoes");
+  if (user) redirect("/visao-geral");
 
   let firstAccess = false;
   let configurationError = "";
   try {
     firstAccess = (await loginUserCount()) === 0;
   } catch (error) {
-    configurationError = error instanceof Error ? error.message : "Não foi possível conectar ao banco.";
+    configurationError = publicError(error);
   }
 
   return (

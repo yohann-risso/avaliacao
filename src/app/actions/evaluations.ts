@@ -32,6 +32,7 @@ export async function saveWeeklyEvaluationAction(formData: FormData): Promise<vo
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = `/avaliacoes?week=${encodeURIComponent(week)}&employee=${employeeId}`;
+  let successPath = path;
   try {
     if (!employeeId) throw new Error("Selecione o funcionário.");
     const weekStart = normalizeMonday(week);
@@ -73,11 +74,26 @@ export async function saveWeeklyEvaluationAction(formData: FormData): Promise<vo
         taxa_erros_just = excluded.taxa_erros_just, produtividade_just = excluded.produtividade_just,
         comportamento_just = excluded.comportamento_just
     `;
+    const nextEmployeeId = integer(formData, "next_employee_id");
+    if (nextEmployeeId > 0) {
+      const nextRows = await sql<{ id: number }[]>`
+        select id from employees where id = ${nextEmployeeId} and active = 1 and coalesce(is_leadership, 0) = 0 limit 1
+      `;
+      if (nextRows[0]) successPath = `/avaliacoes?week=${encodeURIComponent(weekStart)}&employee=${nextEmployeeId}`;
+    }
   } catch (error) {
     redirectWith(path, "error", publicError(error));
   }
   revalidatePath("/avaliacoes");
-  redirectWith(path, "success", "Avaliação semanal salva.");
+  revalidatePath("/visao-geral");
+  revalidatePath("/relatorios");
+  redirectWith(successPath, "success", "Avaliação semanal salva.");
+}
+
+function occurrenceReturnPath(formData: FormData, week: string, employeeId: number): string {
+  const requested = text(formData, "return_to");
+  if (requested === "/ocorrencias" || requested.startsWith("/ocorrencias?")) return requested;
+  return `/avaliacoes?week=${encodeURIComponent(week)}&employee=${employeeId}`;
 }
 
 function workbookCell(row: ExcelJS.Row, headers: Map<string, number>, name: string): ExcelJS.CellValue {
@@ -200,7 +216,7 @@ export async function addWeeklyOccurrenceAction(formData: FormData): Promise<voi
   await requireUser();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
-  const path = `/avaliacoes?week=${encodeURIComponent(week)}&employee=${employeeId}`;
+  const path = occurrenceReturnPath(formData, week, employeeId);
   try {
     if (!employeeId) throw new Error("Selecione o funcionário.");
     const weekStart = normalizeMonday(week);
@@ -222,6 +238,9 @@ export async function addWeeklyOccurrenceAction(formData: FormData): Promise<voi
     redirectWith(path, "error", publicError(error));
   }
   revalidatePath("/avaliacoes");
+  revalidatePath("/ocorrencias");
+  revalidatePath("/visao-geral");
+  revalidatePath("/relatorios");
   redirectWith(path, "success", "Ocorrência registrada e desconto recalculado.");
 }
 
@@ -229,7 +248,7 @@ export async function deleteWeeklyOccurrenceAction(formData: FormData): Promise<
   await requireUser();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
-  const path = `/avaliacoes?week=${encodeURIComponent(week)}&employee=${employeeId}`;
+  const path = occurrenceReturnPath(formData, week, employeeId);
   try {
     const id = integer(formData, "id");
     if (!id) throw new Error("Registro inválido.");
@@ -238,5 +257,8 @@ export async function deleteWeeklyOccurrenceAction(formData: FormData): Promise<
     redirectWith(path, "error", publicError(error));
   }
   revalidatePath("/avaliacoes");
+  revalidatePath("/ocorrencias");
+  revalidatePath("/visao-geral");
+  revalidatePath("/relatorios");
   redirectWith(path, "success", "Registro removido.");
 }

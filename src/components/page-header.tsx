@@ -25,7 +25,7 @@ export function PageHeader({
           </div>
         </div>
       </div>
-      <span className="user-pill">{user}</span>
+      <span className="user-pill"><span className="status-dot" />{user}</span>
     </header>
   );
 }

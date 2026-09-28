@@ -27,6 +27,9 @@ export function publicError(error: unknown): string {
   if (error instanceof Error) {
     const message = error.message.replace(/postgres(?:ql)?:\/\/[^\s]+/gi, "[CONEXÃO OCULTA]");
     if (message.includes("duplicate key") || message.includes("idx_login_users_username")) return "Registro já cadastrado.";
+    if (message.includes("password authentication failed")) return "O Supabase recusou a senha do banco. Revise a senha em DATABASE_URL.";
+    if (message.includes("ENOTFOUND") || message.includes("getaddrinfo")) return "O endereço do Supabase não foi encontrado. Copie novamente a URL do pooler.";
+    if (message.includes("connect timeout") || message.includes("ETIMEDOUT")) return "O Supabase não respondeu a tempo. Verifique a URL do pooler e tente novamente.";
     if (message.length <= 220) return message;
   }
   return "Não foi possível concluir a operação. Tente novamente.";
@@ -34,5 +37,5 @@ export function publicError(error: unknown): string {
 
 export function redirectWith(path: string, kind: "success" | "error", message: string): never {
   const params = new URLSearchParams({ [kind]: message });
-  redirect(`${path}?${params.toString()}`);
+  redirect(`${path}${path.includes("?") ? "&" : "?"}${params.toString()}`);
 }

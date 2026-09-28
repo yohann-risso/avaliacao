@@ -42,3 +42,9 @@ export type WeeklyError = {
   notes: string;
   created_at: string;
 };
+
+export type WeeklyErrorWithEmployee = WeeklyError & {
+  employee_name: string;
+  employee_sector: string;
+  employee_role: string;
+};

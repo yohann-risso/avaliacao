@@ -2,7 +2,7 @@ import "server-only";
 
 import { sql } from "@/lib/db";
 import { weeksForCompetencia } from "@/lib/dates";
-import type { Employee, WeeklyError, WeeklyEvaluation } from "@/lib/types";
+import type { Employee, WeeklyError, WeeklyErrorWithEmployee, WeeklyEvaluation } from "@/lib/types";
 
 export type LoginUserRow = {
   id: number;
@@ -49,6 +49,18 @@ export async function listEmployees(includeInactive = true): Promise<Employee[]>
 
 export async function listActiveEmployees(): Promise<Employee[]> {
   return listEmployees(false);
+}
+
+export async function getEmployee(employeeId: number): Promise<Employee | null> {
+  const rows = await sql<Employee[]>`
+    select
+      id, name, sector, role, hire_date, monitor_start_date, leadership_start_date,
+      termination_date, is_monitor, is_leadership, active, created_at, updated_at
+    from employees
+    where id = ${employeeId}
+    limit 1
+  `;
+  return rows[0] ?? null;
 }
 
 export async function listEvaluators(): Promise<Employee[]> {
@@ -98,6 +110,44 @@ export async function listWeeklyErrorsForWeeks(weeks: string[]): Promise<WeeklyE
     from weekly_errors
     where trim(week_start) in ${sql(weeks)}
     order by week_start, employee_id, id
+  `;
+}
+
+export async function listOccurrenceRowsForWeeks(weeks: string[]): Promise<WeeklyErrorWithEmployee[]> {
+  if (!weeks.length) return [];
+  return sql<WeeklyErrorWithEmployee[]>`
+    select
+      w.id, w.employee_id, trim(w.week_start) as week_start, w.role_snapshot,
+      w.error_type, w.severity, w.qty, coalesce(w.notes, '') as notes, w.created_at,
+      e.name as employee_name, e.sector as employee_sector, e.role as employee_role
+    from weekly_errors w
+    join employees e on e.id = w.employee_id
+    where trim(w.week_start) in ${sql(weeks)}
+    order by w.week_start desc, w.created_at desc, w.id desc
+  `;
+}
+
+export async function listRecentWeeklyEvaluations(employeeId: number, limit = 16): Promise<WeeklyEvaluation[]> {
+  const safeLimit = Math.max(1, Math.min(52, Math.floor(limit)));
+  return sql<WeeklyEvaluation[]>`
+    select w.*, e.name as employee_name, e.sector, e.role
+    from weekly_evaluations w
+    join employees e on e.id = w.employee_id
+    where w.employee_id = ${employeeId}
+    order by trim(w.week_start) desc
+    limit ${safeLimit}
+  `;
+}
+
+export async function listRecentWeeklyErrors(employeeId: number, limit = 50): Promise<WeeklyError[]> {
+  const safeLimit = Math.max(1, Math.min(200, Math.floor(limit)));
+  return sql<WeeklyError[]>`
+    select id, employee_id, trim(week_start) as week_start, role_snapshot, error_type,
+      severity, qty, coalesce(notes, '') as notes, created_at
+    from weekly_errors
+    where employee_id = ${employeeId}
+    order by trim(week_start) desc, created_at desc, id desc
+    limit ${safeLimit}
   `;
 }
 
