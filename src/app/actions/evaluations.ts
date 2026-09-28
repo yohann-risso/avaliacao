@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import { revalidatePath } from "next/cache";
 
@@ -123,11 +124,20 @@ export async function importWeeklyWorkbookAction(formData: FormData): Promise<vo
   const user = await requireUser();
   const fallbackWeek = text(formData, "week_start");
   const path = `/avaliacoes?week=${encodeURIComponent(fallbackWeek)}`;
+  const importId = randomUUID();
+  const startedAt = Date.now();
+  let importedCount = 0;
   try {
     if (formData.get("confirm") !== "on") throw new Error("Confirme que revisou a planilha antes de importar.");
     const file = formData.get("workbook");
     if (!(file instanceof File) || !file.size) throw new Error("Selecione um arquivo XLSX.");
     if (file.size > 10 * 1024 * 1024) throw new Error("O arquivo deve ter no máximo 10 MB.");
+    console.info("[weekly-workbook-import] started", {
+      importId,
+      userId: user.id,
+      fileSize: file.size,
+      fallbackWeek,
+    });
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await file.arrayBuffer());
     const sheet = workbook.getWorksheet("Avaliacoes") || workbook.worksheets[0];
@@ -171,6 +181,7 @@ export async function importWeeklyWorkbookAction(formData: FormData): Promise<vo
     await requireEmployeesAccess(user, employeeIds);
     const resolvedRows: typeof parsedRows = [];
     for (const row of parsedRows) resolvedRows.push({ ...row, evaluator: await authorizedEvaluatorName(user, row.evaluator) });
+    importedCount = resolvedRows.length;
     const now = new Date().toISOString();
     await sql.begin(async (transaction) => {
       for (const row of resolvedRows) {
@@ -201,11 +212,25 @@ export async function importWeeklyWorkbookAction(formData: FormData): Promise<vo
         `;
       }
     });
-    revalidatePath("/avaliacoes");
-    redirectWith(path, "success", `${resolvedRows.length} avaliação(ões) importada(s).`);
+    console.info("[weekly-workbook-import] completed", {
+      importId,
+      userId: user.id,
+      rowCount: importedCount,
+      durationMs: Date.now() - startedAt,
+    });
   } catch (error) {
-    redirectWith(path, "error", publicError(error));
+    const message = publicError(error);
+    console.error("[weekly-workbook-import] failed", {
+      importId,
+      userId: user.id,
+      durationMs: Date.now() - startedAt,
+      errorName: error instanceof Error ? error.name : "UnknownError",
+      message,
+    });
+    redirectWith(path, "error", message);
   }
+  revalidatePath("/avaliacoes");
+  redirectWith(path, "success", `${importedCount} avaliação(ões) importada(s).`);
 }
 
 export async function addWeeklyOccurrenceAction(formData: FormData): Promise<void> {
