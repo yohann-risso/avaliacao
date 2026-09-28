@@ -356,6 +356,10 @@ small { line-height: 1.35; }
 .quick-occurrence-form .span-actions { grid-column: span 3; display: flex; justify-content: flex-end; }
 .quick-occurrence-form .span-actions .button { align-self: end; }
 .row-actions { display: flex; gap: 6px; }
+.page-tabs { display: flex; gap: 5px; width: fit-content; padding: 4px; border: 1px solid var(--line); border-radius: 11px; background: white; }
+.page-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 12px; border-radius: 8px; color: var(--muted); font-size: .7rem; font-weight: 780; }
+.page-tab:hover { color: var(--ink); background: var(--surface-soft); }
+.page-tab.active { color: white; background: var(--blue); box-shadow: 0 4px 10px rgba(47,111,237,.2); }
 .empty-state { min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 25px; color: var(--muted); text-align: center; }
 .empty-state.compact { min-height: 120px; padding: 18px; }
 .empty-state strong { color: var(--ink-soft); font-size: .78rem; }

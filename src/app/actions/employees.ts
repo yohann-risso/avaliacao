@@ -81,7 +81,7 @@ async function validatedEvaluatorId(item: EmployeePayload, employeeId?: number):
 }
 
 function revalidateEmployeeScopePaths(): void {
-  for (const path of ["/funcionarios", "/avaliacoes", "/visao-geral", "/ocorrencias", "/monitoria"]) {
+  for (const path of ["/funcionarios", "/funcionarios/vinculos", "/avaliacoes", "/visao-geral", "/ocorrencias", "/monitoria"]) {
     revalidatePath(path);
   }
 }
@@ -181,10 +181,10 @@ export async function saveEmployeeEvaluatorLinkAction(formData: FormData): Promi
       where id = ${employeeId}
     `;
   } catch (error) {
-    redirectWith("/funcionarios", "error", publicError(error));
+    redirectWith("/funcionarios/vinculos", "error", publicError(error));
   }
   revalidateEmployeeScopePaths();
-  redirectWith("/funcionarios", "success", "Vínculo salvo.");
+  redirectWith("/funcionarios/vinculos", "success", "Vínculo salvo.");
 }
 
 export async function deleteEmployeeEvaluatorLinkAction(formData: FormData): Promise<void> {
@@ -199,8 +199,8 @@ export async function deleteEmployeeEvaluatorLinkAction(formData: FormData): Pro
       where id = ${employeeId}
     `;
   } catch (error) {
-    redirectWith("/funcionarios", "error", publicError(error));
+    redirectWith("/funcionarios/vinculos", "error", publicError(error));
   }
   revalidateEmployeeScopePaths();
-  redirectWith("/funcionarios", "success", "Vínculo removido.");
+  redirectWith("/funcionarios/vinculos", "success", "Vínculo removido.");
 }
