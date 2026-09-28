@@ -9,8 +9,8 @@ import { SubmitButton } from "@/components/submit-button";
 import { requireAdmin } from "@/lib/auth";
 import { WEEKLY_CRITERIA } from "@/lib/constants";
 import { currentMonth, dateBr, monthBr } from "@/lib/dates";
-import { getEmployee, listRecentWeeklyErrors, listRecentWeeklyEvaluations } from "@/lib/data";
-import { brl, pct, weeklyPaymentBreakdown } from "@/lib/money";
+import { getEmployee, listEvaluators, listRecentBonusAdjustments, listRecentWeeklyErrors, listRecentWeeklyEvaluations } from "@/lib/data";
+import { brl, pct, totalAfterFinancialAdjustments, weeklyPaymentBreakdown } from "@/lib/money";
 import { buildMonthlyReport } from "@/lib/report";
 import { getEvaluationRule } from "@/lib/rules";
 
@@ -19,8 +19,8 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const employeeId = Number(id);
   if (!Number.isInteger(employeeId) || employeeId < 1) notFound();
   const month = currentMonth();
-  const [user, employee, evaluations, occurrences, report] = await Promise.all([
-    requireAdmin(), getEmployee(employeeId), listRecentWeeklyEvaluations(employeeId), listRecentWeeklyErrors(employeeId), buildMonthlyReport(month),
+  const [user, employee, evaluators, evaluations, occurrences, adjustments, report] = await Promise.all([
+    requireAdmin(), getEmployee(employeeId), listEvaluators(), listRecentWeeklyEvaluations(employeeId), listRecentWeeklyErrors(employeeId), listRecentBonusAdjustments(employeeId), buildMonthlyReport(month),
   ]);
   if (!employee) notFound();
   const reportRow = report.rows.find((row) => row.employeeId === employee.id);
@@ -29,6 +29,12 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
     const current = errorsByWeek.get(item.week_start) || [];
     current.push(item);
     errorsByWeek.set(item.week_start, current);
+  }
+  const adjustmentsByWeek = new Map<string, typeof adjustments>();
+  for (const item of adjustments) {
+    const current = adjustmentsByWeek.get(item.week_start) || [];
+    current.push(item);
+    adjustmentsByWeek.set(item.week_start, current);
   }
   const averages = evaluations.map((evaluation) => WEEKLY_CRITERIA.reduce((sum, criterion) => sum + Number(evaluation[`${criterion.key}_pct`] || 0), 0) / WEEKLY_CRITERIA.length);
   const historicalAverage = averages.length ? averages.reduce((sum, item) => sum + item, 0) / averages.length : null;
@@ -57,8 +63,11 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
           <div className="table-wrap borderless"><table className="dense-table"><thead><tr><th>Semana</th><th>Avaliador</th><th>Média</th><th>Ocorrências</th><th>Prévia</th></tr></thead><tbody>{evaluations.map((evaluation) => {
             const average = WEEKLY_CRITERIA.reduce((sum, criterion) => sum + Number(evaluation[`${criterion.key}_pct`] || 0), 0) / WEEKLY_CRITERIA.length;
             const errors = errorsByWeek.get(String(evaluation.week_start).trim()) || [];
+            const weeklyAdjustments = adjustmentsByWeek.get(String(evaluation.week_start).trim()) || [];
             const payment = weeklyPaymentBreakdown(evaluation, errors);
-            return <tr key={evaluation.id}><td><Link className="text-link" href={`/avaliacoes?week=${evaluation.week_start}&employee=${employee.id}`}>{dateBr(String(evaluation.week_start))}</Link></td><td>{evaluation.evaluator}</td><td><span className={`status-chip ${average >= 90 ? "success" : average >= 70 ? "warning" : "danger"}`}>{pct(average)}</span></td><td>{errors.reduce((sum, item) => sum + item.qty, 0)}</td><td><strong>{brl(payment.total)}</strong>{payment.discount ? <><br /><small className="danger-text">-{brl(payment.discount)}</small></> : null}</td></tr>;
+            const adjustedTotal = totalAfterFinancialAdjustments(payment.total, weeklyAdjustments);
+            const adjustment = weeklyAdjustments.reduce((sum, item) => sum + Number(item.amount), 0);
+            return <tr key={evaluation.id}><td><Link className="text-link" href={`/avaliacoes?week=${evaluation.week_start}&employee=${employee.id}`}>{dateBr(String(evaluation.week_start))}</Link></td><td>{evaluation.evaluator}</td><td><span className={`status-chip ${average >= 90 ? "success" : average >= 70 ? "warning" : "danger"}`}>{pct(average)}</span></td><td>{errors.reduce((sum, item) => sum + item.qty, 0)}</td><td><strong>{brl(adjustedTotal)}</strong>{payment.discount ? <><br /><small className="danger-text">-{brl(payment.discount)} em regras</small></> : null}{adjustment ? <><br /><small className={adjustment > 0 ? "success-text" : "danger-text"}>{adjustment > 0 ? "+" : "−"}{brl(Math.abs(adjustment))} em ajustes</small></> : null}</td></tr>;
           })}</tbody></table>{!evaluations.length ? <div className="empty-state compact"><CalendarClock size={26} /><strong>Sem histórico</strong><span>A primeira avaliação aparecerá aqui.</span></div> : null}</div>
         </section>
 
@@ -74,7 +83,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       <section className="section">
         <details className="panel profile-edit-panel">
           <summary><span className="metric-icon blue"><Pencil size={18} /></span><span><strong>Editar dados e elegibilidade</strong><small>Altere função, datas, monitoria ou liderança.</small></span></summary>
-          <form action={updateEmployeeAction} className="details-form"><EmployeeFields employee={employee} /><div className="actions"><SubmitButton>Salvar alterações</SubmitButton></div></form>
+          <form action={updateEmployeeAction} className="details-form"><EmployeeFields employee={employee} evaluators={evaluators} /><div className="actions"><SubmitButton>Salvar alterações</SubmitButton></div></form>
           <form action={toggleEmployeeAction} className="danger-zone"><input type="hidden" name="id" value={employee.id} /><input type="hidden" name="active" value={employee.active ? 0 : 1} /><div><strong>{employee.active ? "Desativar colaborador" : "Reativar colaborador"}</strong><p>{employee.active ? "O histórico será preservado e o colaborador sairá das filas futuras." : "O colaborador voltará às filas de avaliação."}</p></div><SubmitButton className={employee.active ? "button danger" : "button secondary"}>{employee.active ? "Desativar" : "Reativar"}</SubmitButton></form>
         </details>
       </section>

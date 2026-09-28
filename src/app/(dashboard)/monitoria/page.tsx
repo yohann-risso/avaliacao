@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { MONITOR_FIXED_VALUE } from "@/lib/constants";
 import { currentMonth, dateBr, isWeekAfterStart, monthBr, weeksForCompetencia } from "@/lib/dates";
 import { listActiveEmployees } from "@/lib/data";
+import { employeesVisibleTo } from "@/lib/employee-access";
 import { brl } from "@/lib/money";
 
 export default async function MonitoringPage({
@@ -12,7 +13,8 @@ export default async function MonitoringPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
-  const [user, params, activeEmployees] = await Promise.all([requireUser(), searchParams, listActiveEmployees()]);
+  const [user, params] = await Promise.all([requireUser(), searchParams]);
+  const activeEmployees = employeesVisibleTo(user, await listActiveEmployees());
   const month = /^\d{4}-\d{2}$/.test(params.month || "") ? String(params.month) : currentMonth();
   const weeks = weeksForCompetencia(month);
   const monitors = activeEmployees.filter(

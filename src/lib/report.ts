@@ -2,8 +2,8 @@ import "server-only";
 
 import { MONITOR_FIXED_VALUE, WEEKLY_CRITERIA } from "@/lib/constants";
 import { eligibleWeeks, isWeekAfterStart, monthReferenceDate, weeksForCompetencia } from "@/lib/dates";
-import { listEmployees, listWeeklyErrorsForWeeks, listWeeklyEvaluations } from "@/lib/data";
-import { monthlyBasePayment, monitorPayment, tenurePayment } from "@/lib/money";
+import { listBonusAdjustmentsForWeeks, listEmployees, listWeeklyErrorsForWeeks, listWeeklyEvaluations } from "@/lib/data";
+import { financialAdjustmentTotal, monthlyBasePayment, monitorPayment, tenurePayment, totalAfterFinancialAdjustments } from "@/lib/money";
 
 export type ReportRow = {
   employeeId: number;
@@ -22,6 +22,7 @@ export type ReportRow = {
   basePayment: number;
   monitorPayment: number;
   tenurePayment: number;
+  adjustmentTotal: number;
   total: number;
   status: "OK" | "Pendente";
 };
@@ -39,10 +40,11 @@ export type MonthlyReport = {
 
 export async function buildMonthlyReport(month: string): Promise<MonthlyReport> {
   const weeks = weeksForCompetencia(month);
-  const [employees, weekly, errors] = await Promise.all([
+  const [employees, weekly, errors, adjustments] = await Promise.all([
     listEmployees(true),
     listWeeklyEvaluations(weeks),
     listWeeklyErrorsForWeeks(weeks),
+    listBonusAdjustmentsForWeeks(weeks),
   ]);
   const weeklyByEmployee = new Map<number, typeof weekly>();
   for (const item of weekly) {
@@ -57,6 +59,12 @@ export async function buildMonthlyReport(month: string): Promise<MonthlyReport> 
     const current = errorsByEmployeeRows.get(item.employee_id) || [];
     current.push(item);
     errorsByEmployeeRows.set(item.employee_id, current);
+  }
+  const adjustmentsByEmployee = new Map<number, typeof adjustments>();
+  for (const item of adjustments) {
+    const current = adjustmentsByEmployee.get(item.employee_id) || [];
+    current.push(item);
+    adjustmentsByEmployee.set(item.employee_id, current);
   }
 
   const rows: ReportRow[] = [];
@@ -78,6 +86,8 @@ export async function buildMonthlyReport(month: string): Promise<MonthlyReport> 
     const basePayment = baseBreakdown.total;
     const additionalMonitor = monitorPayment(monitorEligible);
     const tenure = tenurePayment(employee.hire_date, month);
+    const employeeAdjustments = (adjustmentsByEmployee.get(employee.id) || []).filter((item) => validWeeks.includes(String(item.week_start).trim()));
+    const adjustmentTotal = financialAdjustmentTotal(employeeAdjustments);
     const percentages = employeeWeekly.flatMap((item) => WEEKLY_CRITERIA.map((criterion) => Number(item[`${criterion.key}_pct`] || 0)));
     const missingWeeks = isLeadership ? 0 : Math.max(0, validWeeks.length - new Set(employeeWeekly.map((item) => String(item.week_start).trim())).size);
     const status = missingWeeks ? "Pendente" : "OK";
@@ -103,7 +113,8 @@ export async function buildMonthlyReport(month: string): Promise<MonthlyReport> 
       basePayment,
       monitorPayment: additionalMonitor,
       tenurePayment: tenure,
-      total: basePayment + additionalMonitor + tenure,
+      adjustmentTotal,
+      total: totalAfterFinancialAdjustments(basePayment + additionalMonitor + tenure, employeeAdjustments),
       status,
     });
   }

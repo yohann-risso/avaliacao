@@ -13,6 +13,8 @@ export type Employee = {
   name: string;
   sector: string;
   role: string;
+  evaluator_employee_id: number | null;
+  evaluator_name: string;
   hire_date: string;
   monitor_start_date: string;
   leadership_start_date: string;
@@ -44,6 +46,23 @@ export type WeeklyError = {
 };
 
 export type WeeklyErrorWithEmployee = WeeklyError & {
+  employee_name: string;
+  employee_sector: string;
+  employee_role: string;
+};
+
+export type BonusAdjustment = {
+  id: number;
+  employee_id: number;
+  week_start: string;
+  amount: number;
+  description: string;
+  created_at: string;
+  created_by_user_id: number | null;
+  created_by_username: string;
+};
+
+export type BonusAdjustmentWithEmployee = BonusAdjustment & {
   employee_name: string;
   employee_sector: string;
   employee_role: string;

@@ -11,6 +11,7 @@ type EmployeePayload = {
   name: string;
   sector: string;
   role: string;
+  evaluatorEmployeeId: number | null;
   hireDate: string;
   monitorStartDate: string;
   leadershipStartDate: string;
@@ -24,6 +25,7 @@ function employeePayload(formData: FormData): EmployeePayload {
     name: text(formData, "name"),
     sector: text(formData, "sector"),
     role: text(formData, "role"),
+    evaluatorEmployeeId: integer(formData, "evaluator_employee_id") || null,
     hireDate: text(formData, "hire_date"),
     monitorStartDate: text(formData, "monitor_start_date"),
     leadershipStartDate: text(formData, "leadership_start_date"),
@@ -35,25 +37,70 @@ function employeePayload(formData: FormData): EmployeePayload {
     throw new Error("Nome, setor, função e contratação são obrigatórios.");
   }
   if (payload.isLeadership && payload.isMonitor) throw new Error("Coordenação/supervisão não pode ser marcada como monitor.");
+  if (!payload.isLeadership && !payload.evaluatorEmployeeId) throw new Error("Selecione o avaliador responsável pelo funcionário.");
   if (payload.isMonitor && !payload.monitorStartDate) throw new Error("Informe a data de início como monitor.");
   if (payload.isLeadership && !payload.leadershipStartDate) throw new Error("Informe a data de início em coordenação/supervisão.");
   return payload;
+}
+
+async function validateEvaluatorLink(employeeId: number | undefined, evaluatorEmployeeId: number): Promise<number> {
+  if (employeeId && evaluatorEmployeeId === employeeId) {
+    throw new Error("Uma liderança não pode ser vinculada a ela mesma.");
+  }
+  const rows = await sql<{ id: number }[]>`
+    select id from employees
+    where id = ${evaluatorEmployeeId} and active = 1 and coalesce(is_leadership, 0) = 1
+    limit 1
+  `;
+  if (!rows[0]) throw new Error("Selecione um avaliador ativo de coordenação/supervisão.");
+  if (employeeId) {
+    const cycle = await sql<{ id: number }[]>`
+      with recursive descendants(id) as (
+        select id from employees where evaluator_employee_id = ${employeeId}
+        union
+        select child.id
+        from employees child
+        join descendants parent on child.evaluator_employee_id = parent.id
+      )
+      select id from descendants where id = ${evaluatorEmployeeId} limit 1
+    `;
+    if (cycle[0]) throw new Error("Esse vínculo criaria um ciclo na hierarquia de avaliadores.");
+  }
+  return rows[0].id;
+}
+
+async function validatedEvaluatorId(item: EmployeePayload, employeeId?: number): Promise<number | null> {
+  if (employeeId && !item.isLeadership) {
+    const subordinates = await sql<{ id: number }[]>`
+      select id from employees where evaluator_employee_id = ${employeeId} limit 1
+    `;
+    if (subordinates[0]) throw new Error("Reatribua a equipe antes de remover o perfil de coordenação/supervisão.");
+  }
+  if (!item.evaluatorEmployeeId) return null;
+  return validateEvaluatorLink(employeeId, item.evaluatorEmployeeId);
+}
+
+function revalidateEmployeeScopePaths(): void {
+  for (const path of ["/funcionarios", "/avaliacoes", "/visao-geral", "/ocorrencias", "/monitoria"]) {
+    revalidatePath(path);
+  }
 }
 
 export async function createEmployeeAction(formData: FormData): Promise<void> {
   const actor = await requireAdmin();
   try {
     const item = employeePayload(formData);
+    const evaluatorEmployeeId = await validatedEvaluatorId(item);
     const now = new Date().toISOString();
     const active = item.terminationDate && item.terminationDate <= todayBrazil() ? 0 : 1;
     await sql`
       insert into employees (
-        name, sector, role, hire_date, monitor_start_date, leadership_start_date,
+        name, sector, role, evaluator_employee_id, hire_date, monitor_start_date, leadership_start_date,
         termination_date, is_monitor,
         is_leadership, active, deactivated_at, created_at, created_by_user_id,
         created_by_username, updated_by_user_id, updated_by_username, updated_at
       ) values (
-        ${item.name}, ${item.sector}, ${item.role}, ${item.hireDate},
+        ${item.name}, ${item.sector}, ${item.role}, ${evaluatorEmployeeId}, ${item.hireDate},
         ${item.isMonitor ? item.monitorStartDate : ""},
         ${item.isLeadership ? item.leadershipStartDate : ""},
         ${item.terminationDate}, ${item.isMonitor ? 1 : 0}, ${item.isLeadership ? 1 : 0}, ${active},
@@ -63,7 +110,7 @@ export async function createEmployeeAction(formData: FormData): Promise<void> {
   } catch (error) {
     redirectWith("/funcionarios", "error", publicError(error));
   }
-  revalidatePath("/funcionarios");
+  revalidateEmployeeScopePaths();
   redirectWith("/funcionarios", "success", "Funcionário cadastrado.");
 }
 
@@ -73,11 +120,13 @@ export async function updateEmployeeAction(formData: FormData): Promise<void> {
     const id = integer(formData, "id");
     if (!id) throw new Error("Funcionário inválido.");
     const item = employeePayload(formData);
+    const evaluatorEmployeeId = await validatedEvaluatorId(item, id);
     const now = new Date().toISOString();
     const active = item.terminationDate && item.terminationDate <= todayBrazil() ? 0 : 1;
     await sql`
       update employees set
-        name = ${item.name}, sector = ${item.sector}, role = ${item.role}, hire_date = ${item.hireDate},
+        name = ${item.name}, sector = ${item.sector}, role = ${item.role},
+        evaluator_employee_id = ${evaluatorEmployeeId}, hire_date = ${item.hireDate},
         monitor_start_date = ${item.isMonitor ? item.monitorStartDate : ""},
         leadership_start_date = ${item.isLeadership ? item.leadershipStartDate : ""},
         termination_date = ${item.terminationDate}, is_monitor = ${item.isMonitor ? 1 : 0},
@@ -89,7 +138,7 @@ export async function updateEmployeeAction(formData: FormData): Promise<void> {
   } catch (error) {
     redirectWith("/funcionarios", "error", publicError(error));
   }
-  revalidatePath("/funcionarios");
+  revalidateEmployeeScopePaths();
   redirectWith("/funcionarios", "success", "Cadastro atualizado.");
 }
 
@@ -110,6 +159,48 @@ export async function toggleEmployeeAction(formData: FormData): Promise<void> {
   } catch (error) {
     redirectWith("/funcionarios", "error", publicError(error));
   }
-  revalidatePath("/funcionarios");
+  revalidateEmployeeScopePaths();
   redirectWith("/funcionarios", "success", "Status atualizado.");
+}
+
+export async function saveEmployeeEvaluatorLinkAction(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  try {
+    const employeeId = integer(formData, "employee_id");
+    const evaluatorEmployeeId = integer(formData, "evaluator_employee_id");
+    if (!employeeId || !evaluatorEmployeeId) throw new Error("Selecione a pessoa e o responsável pelo vínculo.");
+    const employees = await sql<{ id: number }[]>`
+      select id from employees where id = ${employeeId} and active = 1 limit 1
+    `;
+    if (!employees[0]) throw new Error("A pessoa selecionada está inativa ou não existe.");
+    const validatedId = await validateEvaluatorLink(employeeId, evaluatorEmployeeId);
+    await sql`
+      update employees set evaluator_employee_id = ${validatedId},
+        updated_by_user_id = ${actor.id}, updated_by_username = ${actor.username},
+        updated_at = ${new Date().toISOString()}
+      where id = ${employeeId}
+    `;
+  } catch (error) {
+    redirectWith("/funcionarios", "error", publicError(error));
+  }
+  revalidateEmployeeScopePaths();
+  redirectWith("/funcionarios", "success", "Vínculo salvo.");
+}
+
+export async function deleteEmployeeEvaluatorLinkAction(formData: FormData): Promise<void> {
+  const actor = await requireAdmin();
+  try {
+    const employeeId = integer(formData, "employee_id");
+    if (!employeeId) throw new Error("Vínculo inválido.");
+    await sql`
+      update employees set evaluator_employee_id = null,
+        updated_by_user_id = ${actor.id}, updated_by_username = ${actor.username},
+        updated_at = ${new Date().toISOString()}
+      where id = ${employeeId}
+    `;
+  } catch (error) {
+    redirectWith("/funcionarios", "error", publicError(error));
+  }
+  revalidateEmployeeScopePaths();
+  redirectWith("/funcionarios", "success", "Vínculo removido.");
 }

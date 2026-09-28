@@ -100,6 +100,8 @@ export const currentUser = cache(async (): Promise<AppUser | null> => {
       coalesce(e.name, '') as evaluator_name
     from login_users u
     left join employees e on e.id = u.evaluator_employee_id
+      and e.active = 1
+      and coalesce(e.is_leadership, 0) = 1
     where u.id = ${userId} and u.active = 1
     limit 1
   `;

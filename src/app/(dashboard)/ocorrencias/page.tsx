@@ -8,6 +8,7 @@ import { QuickOccurrenceForm } from "@/components/quick-occurrence-form";
 import { requireUser } from "@/lib/auth";
 import { currentMonth, dateBr, monthBr, weeksForCompetencia } from "@/lib/dates";
 import { listActiveEmployees, listOccurrenceRowsForWeeks } from "@/lib/data";
+import { employeesVisibleTo } from "@/lib/employee-access";
 import { brl } from "@/lib/money";
 import { getEvaluationRule, type RuleCategory } from "@/lib/rules";
 
@@ -19,8 +20,10 @@ export default async function OccurrencesPage({
   const [user, params] = await Promise.all([requireUser(), searchParams]);
   const month = /^\d{4}-\d{2}$/.test(params.month || "") ? String(params.month) : currentMonth();
   const weeks = weeksForCompetencia(month);
-  const [employees, occurrences] = await Promise.all([listActiveEmployees(), listOccurrenceRowsForWeeks(weeks)]);
+  const allEmployees = await listActiveEmployees();
+  const employees = employeesVisibleTo(user, allEmployees);
   const operators = employees.filter((employee) => !employee.is_leadership);
+  const occurrences = await listOccurrenceRowsForWeeks(weeks, operators.map((employee) => employee.id));
   const query = String(params.q || "").trim().toLocaleLowerCase("pt-BR");
   const week = weeks.includes(String(params.week)) ? String(params.week) : "";
   const category = String(params.category || "") as RuleCategory | "";

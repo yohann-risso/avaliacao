@@ -3,16 +3,18 @@ import ExcelJS from "exceljs";
 import { requireUser } from "@/lib/auth";
 import { normalizeMonday, todayBrazil } from "@/lib/dates";
 import { listActiveEmployees, listWeeklyEvaluations } from "@/lib/data";
+import { employeesVisibleTo } from "@/lib/employee-access";
 import { EVALUATION_RULES } from "@/lib/rules";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  await requireUser();
+  const user = await requireUser();
   const requested = new URL(request.url).searchParams.get("week") || todayBrazil();
   const week = normalizeMonday(requested);
-  const [allEmployees, evaluations] = await Promise.all([listActiveEmployees(), listWeeklyEvaluations([week])]);
-  const employees = allEmployees.filter((item) => !item.is_leadership);
+  const allEmployees = await listActiveEmployees();
+  const employees = employeesVisibleTo(user, allEmployees).filter((item) => !item.is_leadership);
+  const evaluations = await listWeeklyEvaluations([week], employees.map((employee) => employee.id));
   const byEmployee = new Map(evaluations.map((item) => [item.employee_id, item]));
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Avaliação & Bonificação";

@@ -6,7 +6,7 @@ import { Banknote, Check, Save, SkipForward, Sparkles } from "lucide-react";
 import { saveWeeklyEvaluationAction } from "@/app/actions/evaluations";
 import { SubmitButton } from "@/components/submit-button";
 import { WEEKLY_CRITERIA, type WeeklyCriterionKey } from "@/lib/constants";
-import { brl, pct, weeklyPaymentBreakdown } from "@/lib/money";
+import { brl, pct, totalAfterFinancialAdjustments, weeklyPaymentBreakdown } from "@/lib/money";
 import type { WeeklyError } from "@/lib/types";
 
 type EvaluationDraft = Record<string, string | number | null>;
@@ -19,6 +19,7 @@ export function ScoreEditor({
   evaluatorNames,
   selectedEvaluator,
   nextEmployeeId,
+  adjustmentTotal,
 }: {
   employeeId: number;
   week: string;
@@ -27,6 +28,7 @@ export function ScoreEditor({
   evaluatorNames: string[];
   selectedEvaluator: string;
   nextEmployeeId?: number;
+  adjustmentTotal: number;
 }) {
   const [scores, setScores] = useState<Record<WeeklyCriterionKey, number>>(() => Object.fromEntries(
     WEEKLY_CRITERIA.map((criterion) => [criterion.key, Number(evaluation?.[`${criterion.key}_pct`] ?? 100)]),
@@ -36,6 +38,7 @@ export function ScoreEditor({
     for (const criterion of WEEKLY_CRITERIA) row[`${criterion.key}_pct`] = scores[criterion.key];
     return weeklyPaymentBreakdown(row, occurrences);
   }, [scores, occurrences]);
+  const finalTotal = totalAfterFinancialAdjustments(preview.total, [{ amount: adjustmentTotal }]);
   const average = WEEKLY_CRITERIA.reduce((sum, criterion) => sum + scores[criterion.key], 0) / WEEKLY_CRITERIA.length;
 
   function setScore(key: WeeklyCriterionKey, value: number) {
@@ -82,12 +85,13 @@ export function ScoreEditor({
 
       <aside className="panel payment-rail">
         <div className="payment-rail-title"><span className="metric-icon green"><Banknote size={18} /></span><div><p className="eyebrow">Prévia em tempo real</p><h2>Bonificação semanal</h2></div></div>
-        <div className="payment-total"><small>Valor após regras</small><strong>{brl(preview.total)}</strong><span>de {brl(preview.gross)} disponível</span></div>
+        <div className="payment-total"><small>Valor após regras e ajustes</small><strong>{brl(finalTotal)}</strong><span>{brl(preview.total)} após as regras</span></div>
         <div className="payment-breakdown">
           {WEEKLY_CRITERIA.map((criterion) => {
             const item = preview.byCriterion[criterion.key];
             return <div key={criterion.key}><span>{criterion.label}</span><strong>{brl(item.paid)}</strong>{item.gross > item.paid ? <small>-{brl(item.gross - item.paid)}</small> : null}</div>;
           })}
+          {adjustmentTotal !== 0 ? <div className="manual-adjustment-row"><span>Ajustes manuais</span><strong className={adjustmentTotal > 0 ? "success-text" : "danger-text"}>{adjustmentTotal > 0 ? "+" : "−"}{brl(Math.abs(adjustmentTotal))}</strong></div> : null}
         </div>
         <div className={`impact-callout ${preview.discount ? "warning" : "success"}`}><Sparkles size={17} /><div><strong>{preview.discount ? `${brl(preview.discount)} descontados` : "Sem descontos"}</strong><span>{preview.occurrencePoints.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pontos de ocorrência</span></div></div>
         <div className="sticky-actions">

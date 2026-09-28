@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { competenciaFromWeek, eligibleWeeks, weeksForCompetencia } from "@/lib/dates";
-import { bandMultiplier, monthlyBasePayment, monitorPayment, tenurePayment, weeklyPayment, weeklyPaymentBreakdown } from "@/lib/money";
+import { bandMultiplier, financialAdjustmentTotal, monthlyBasePayment, monitorPayment, tenurePayment, totalAfterFinancialAdjustments, weeklyPayment, weeklyPaymentBreakdown } from "@/lib/money";
 import { getEvaluationRule, monthlyOccurrenceImpact } from "@/lib/rules";
 
 describe("competência operacional", () => {
@@ -48,6 +48,13 @@ describe("pagamento", () => {
   it("paga monitoria como valor fixo sem avaliação", () => {
     expect(monitorPayment(true)).toBe(300);
     expect(monitorPayment(false)).toBe(0);
+  });
+
+  it("soma adicionais e descontos manuais sem permitir total negativo", () => {
+    const adjustments = [{ amount: "75.50" }, { amount: -20 }];
+    expect(financialAdjustmentTotal(adjustments)).toBe(55.5);
+    expect(totalAfterFinancialAdjustments(100, adjustments)).toBe(155.5);
+    expect(totalAfterFinancialAdjustments(10, [{ amount: -50 }])).toBe(0);
   });
 });
 

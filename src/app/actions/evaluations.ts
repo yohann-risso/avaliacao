@@ -8,10 +8,11 @@ import { requireUser } from "@/lib/auth";
 import { WEEKLY_CRITERIA } from "@/lib/constants";
 import { normalizeMonday } from "@/lib/dates";
 import { sql } from "@/lib/db";
+import { requireEmployeeAccess, requireEmployeesAccess } from "@/lib/employee-access";
 import { getEvaluationRule } from "@/lib/rules";
+import type { AppUser } from "@/lib/types";
 
-async function authorizedEvaluatorName(requested: string): Promise<string> {
-  const user = await requireUser();
+async function authorizedEvaluatorName(user: AppUser, requested: string): Promise<string> {
   if (user.role === "avaliador") {
     if (!user.evaluator_name) throw new Error("Seu usuário não está vinculado a um avaliador ativo.");
     return user.evaluator_name;
@@ -28,7 +29,7 @@ async function authorizedEvaluatorName(requested: string): Promise<string> {
 }
 
 export async function saveWeeklyEvaluationAction(formData: FormData): Promise<void> {
-  await requireUser();
+  const user = await requireUser();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = `/avaliacoes?week=${encodeURIComponent(week)}&employee=${employeeId}`;
@@ -36,11 +37,8 @@ export async function saveWeeklyEvaluationAction(formData: FormData): Promise<vo
   try {
     if (!employeeId) throw new Error("Selecione o funcionário.");
     const weekStart = normalizeMonday(week);
-    const employees = await sql<{ id: number }[]>`
-      select id from employees where id = ${employeeId} and active = 1 and coalesce(is_leadership, 0) = 0 limit 1
-    `;
-    if (!employees[0]) throw new Error("Funcionário inativo ou não avaliável.");
-    const evaluator = await authorizedEvaluatorName(text(formData, "evaluator"));
+    await requireEmployeeAccess(user, employeeId);
+    const evaluator = await authorizedEvaluatorName(user, text(formData, "evaluator"));
     const values = Object.fromEntries(WEEKLY_CRITERIA.map((criterion) => [criterion.key, percentage(formData, `${criterion.key}_pct`)]));
     const justifications = Object.fromEntries(WEEKLY_CRITERIA.map((criterion) => [criterion.key, text(formData, `${criterion.key}_just`)]));
     for (const criterion of WEEKLY_CRITERIA) {
@@ -76,10 +74,12 @@ export async function saveWeeklyEvaluationAction(formData: FormData): Promise<vo
     `;
     const nextEmployeeId = integer(formData, "next_employee_id");
     if (nextEmployeeId > 0) {
-      const nextRows = await sql<{ id: number }[]>`
-        select id from employees where id = ${nextEmployeeId} and active = 1 and coalesce(is_leadership, 0) = 0 limit 1
-      `;
-      if (nextRows[0]) successPath = `/avaliacoes?week=${encodeURIComponent(weekStart)}&employee=${nextEmployeeId}`;
+      try {
+        await requireEmployeeAccess(user, nextEmployeeId);
+        successPath = `/avaliacoes?week=${encodeURIComponent(weekStart)}&employee=${nextEmployeeId}`;
+      } catch {
+        // A avaliação atual foi salva; apenas não redirecionamos para um funcionário sem acesso.
+      }
     }
   } catch (error) {
     redirectWith(path, "error", publicError(error));
@@ -119,7 +119,7 @@ function workbookDate(value: ExcelJS.CellValue): string {
 }
 
 export async function importWeeklyWorkbookAction(formData: FormData): Promise<void> {
-  await requireUser();
+  const user = await requireUser();
   const fallbackWeek = text(formData, "week_start");
   const path = `/avaliacoes?week=${encodeURIComponent(fallbackWeek)}`;
   try {
@@ -167,14 +167,9 @@ export async function importWeeklyWorkbookAction(formData: FormData): Promise<vo
       duplicateKeys.add(key);
     }
     const employeeIds = [...new Set(parsedRows.map((row) => row.employeeId))];
-    const validEmployees = await sql<{ id: number }[]>`
-      select id from employees where id in ${sql(employeeIds)} and active = 1 and coalesce(is_leadership, 0) = 0
-    `;
-    const validIds = new Set(validEmployees.map((item) => item.id));
-    const invalid = employeeIds.find((id) => !validIds.has(id));
-    if (invalid) throw new Error(`O funcionário #${invalid} está inativo, não existe ou pertence à liderança.`);
+    await requireEmployeesAccess(user, employeeIds);
     const resolvedRows: typeof parsedRows = [];
-    for (const row of parsedRows) resolvedRows.push({ ...row, evaluator: await authorizedEvaluatorName(row.evaluator) });
+    for (const row of parsedRows) resolvedRows.push({ ...row, evaluator: await authorizedEvaluatorName(user, row.evaluator) });
     const now = new Date().toISOString();
     await sql.begin(async (transaction) => {
       for (const row of resolvedRows) {
@@ -213,17 +208,14 @@ export async function importWeeklyWorkbookAction(formData: FormData): Promise<vo
 }
 
 export async function addWeeklyOccurrenceAction(formData: FormData): Promise<void> {
-  await requireUser();
+  const user = await requireUser();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = occurrenceReturnPath(formData, week, employeeId);
   try {
     if (!employeeId) throw new Error("Selecione o funcionário.");
     const weekStart = normalizeMonday(week);
-    const rows = await sql<{ role: string }[]>`
-      select role from employees where id = ${employeeId} and active = 1 limit 1
-    `;
-    if (!rows[0]) throw new Error("Funcionário inválido.");
+    const employee = await requireEmployeeAccess(user, employeeId);
     const rule = getEvaluationRule(text(formData, "occurrence_code"));
     const quantity = integer(formData, "qty", -1);
     if (!rule) throw new Error("Código de ocorrência inválido.");
@@ -231,7 +223,7 @@ export async function addWeeklyOccurrenceAction(formData: FormData): Promise<voi
     if (quantity > 31) throw new Error("A quantidade máxima por lançamento é 31.");
     await sql`
       insert into weekly_errors (employee_id, week_start, role_snapshot, error_type, severity, qty, notes, created_at)
-      values (${employeeId}, ${weekStart}, ${rows[0].role}, ${rule.code}, ${rule.level}, ${quantity},
+      values (${employeeId}, ${weekStart}, ${employee.role}, ${rule.code}, ${rule.level}, ${quantity},
         ${text(formData, "occurrence_notes")}, ${new Date().toISOString()})
     `;
   } catch (error) {
@@ -245,13 +237,14 @@ export async function addWeeklyOccurrenceAction(formData: FormData): Promise<voi
 }
 
 export async function deleteWeeklyOccurrenceAction(formData: FormData): Promise<void> {
-  await requireUser();
+  const user = await requireUser();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = occurrenceReturnPath(formData, week, employeeId);
   try {
     const id = integer(formData, "id");
     if (!id) throw new Error("Registro inválido.");
+    if (user.role === "avaliador") await requireEmployeeAccess(user, employeeId);
     await sql`delete from weekly_errors where id = ${id} and employee_id = ${employeeId}`;
   } catch (error) {
     redirectWith(path, "error", publicError(error));
@@ -261,4 +254,60 @@ export async function deleteWeeklyOccurrenceAction(formData: FormData): Promise<
   revalidatePath("/visao-geral");
   revalidatePath("/relatorios");
   redirectWith(path, "success", "Registro removido.");
+}
+
+export async function addBonusAdjustmentAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const week = text(formData, "week_start");
+  const employeeId = integer(formData, "employee_id");
+  const path = occurrenceReturnPath(formData, week, employeeId);
+  try {
+    if (!employeeId) throw new Error("Selecione o funcionário.");
+    const weekStart = normalizeMonday(week);
+    await requireEmployeeAccess(user, employeeId);
+    const type = text(formData, "adjustment_type");
+    const rawAmount = Number(text(formData, "amount").replace(",", "."));
+    const description = text(formData, "description");
+    if (type !== "addition" && type !== "deduction") throw new Error("Selecione o tipo de ajuste.");
+    if (!Number.isFinite(rawAmount) || rawAmount <= 0) throw new Error("Informe um valor maior que zero.");
+    if (rawAmount > 100000) throw new Error("O valor máximo por ajuste é R$ 100.000,00.");
+    if (description.length < 3 || description.length > 240) throw new Error("A descrição deve ter entre 3 e 240 caracteres.");
+    const amount = Math.round(rawAmount * 100) / 100 * (type === "deduction" ? -1 : 1);
+    await sql`
+      insert into bonus_adjustments (
+        employee_id, week_start, amount, description, created_at, created_by_user_id, created_by_username
+      ) values (
+        ${employeeId}, ${weekStart}, ${amount}, ${description}, ${new Date().toISOString()}, ${user.id}, ${user.username}
+      )
+    `;
+  } catch (error) {
+    redirectWith(path, "error", publicError(error));
+  }
+  revalidatePath("/avaliacoes");
+  revalidatePath("/ocorrencias");
+  revalidatePath("/visao-geral");
+  revalidatePath("/relatorios");
+  revalidatePath(`/funcionarios/${employeeId}`);
+  redirectWith(path, "success", "Ajuste financeiro registrado no fechamento.");
+}
+
+export async function deleteBonusAdjustmentAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const week = text(formData, "week_start");
+  const employeeId = integer(formData, "employee_id");
+  const path = occurrenceReturnPath(formData, week, employeeId);
+  try {
+    const id = integer(formData, "id");
+    if (!id || !employeeId) throw new Error("Ajuste inválido.");
+    await requireEmployeeAccess(user, employeeId);
+    await sql`delete from bonus_adjustments where id = ${id} and employee_id = ${employeeId}`;
+  } catch (error) {
+    redirectWith(path, "error", publicError(error));
+  }
+  revalidatePath("/avaliacoes");
+  revalidatePath("/ocorrencias");
+  revalidatePath("/visao-geral");
+  revalidatePath("/relatorios");
+  revalidatePath(`/funcionarios/${employeeId}`);
+  redirectWith(path, "success", "Ajuste financeiro removido.");
 }

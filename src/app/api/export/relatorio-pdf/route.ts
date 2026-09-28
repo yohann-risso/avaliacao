@@ -31,8 +31,8 @@ export async function GET(request: Request) {
   page.drawText(`Pendencias: ${report.pending}`, { x: 220, y, font: bold, size: 11, color: rgb(0.07, 0.15, 0.23) });
   page.drawText(`Total: ${brl(report.total)}`, { x: 410, y, font: bold, size: 11, color: rgb(0.09, 0.47, 0.39) });
   y -= 28;
-  const columns = [34, 235, 330, 410, 495, 580, 665, 755];
-  const labels = ["Funcionario", "Grupo", "Cobertura", "Regras", "Base", "Monitor fixo", "Tempo", "Total"];
+  const columns = [34, 215, 298, 370, 442, 510, 590, 658, 735];
+  const labels = ["Funcionario", "Grupo", "Cobertura", "Regras", "Base", "Monitor", "Tempo", "Ajustes", "Total"];
   labels.forEach((label, index) => page.drawText(label, { x: columns[index], y, font: bold, size: 8, color: rgb(0.38, 0.46, 0.54) }));
   y -= 13;
   for (const row of report.rows) {
@@ -44,9 +44,9 @@ export async function GET(request: Request) {
     page.drawLine({ start: { x: 34, y: y - 5 }, end: { x: 810, y: y - 5 }, thickness: 0.5, color: rgb(0.86, 0.89, 0.92) });
     const values = [
       row.name.slice(0, 30), row.group, row.group === "Coord./Sup." ? "Base mensal" : `${row.evaluatedWeeks}/${row.eligibleWeeks}`,
-      `-${brl(row.ruleDiscount)}`, brl(row.basePayment), brl(row.monitorPayment), brl(row.tenurePayment), brl(row.total),
+      `-${brl(row.ruleDiscount)}`, brl(row.basePayment), brl(row.monitorPayment), brl(row.tenurePayment), brl(row.adjustmentTotal), brl(row.total),
     ];
-    values.forEach((value, index) => page.drawText(value, { x: columns[index], y, font: index === 0 || index === 6 ? bold : regular, size: 8, color: rgb(0.07, 0.15, 0.23) }));
+    values.forEach((value, index) => page.drawText(value, { x: columns[index], y, font: index === 0 || index === 8 ? bold : regular, size: 7.5, color: rgb(0.07, 0.15, 0.23) }));
     y -= 20;
   }
   page.drawText("Documento gerado pelo sistema. Confira as pendencias antes do envio ao RH.", { x: 34, y: 22, font: regular, size: 7, color: rgb(0.38, 0.46, 0.54) });

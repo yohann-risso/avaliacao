@@ -2,6 +2,23 @@ import { MONITOR_FIXED_VALUE, PAY_BANDS, TENURE_BONUS_PER_YEAR, WEEKLY_CRITERIA,
 import { monthReferenceDate, yearsInCompany } from "@/lib/dates";
 import { EVALUATION_RULES, monthlyOccurrenceImpact, ruleQuantity, type OccurrenceInput } from "@/lib/rules";
 
+export type FinancialAdjustmentInput = { amount: number | string };
+
+function currency(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+export function financialAdjustmentTotal(adjustments: FinancialAdjustmentInput[] = []): number {
+  return currency(adjustments.reduce((sum, adjustment) => {
+    const amount = Number(adjustment.amount);
+    return sum + (Number.isFinite(amount) ? amount : 0);
+  }, 0));
+}
+
+export function totalAfterFinancialAdjustments(base: number, adjustments: FinancialAdjustmentInput[] = []): number {
+  return currency(Math.max(0, Number(base || 0) + financialAdjustmentTotal(adjustments)));
+}
+
 export function clampPercentage(value: unknown): number {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric)) : 0;

@@ -315,6 +315,21 @@ small { line-height: 1.35; }
 .sticky-actions { display: grid; gap: 7px; margin-top: 15px; }
 .occurrence-grid { align-items: start; }
 .occurrence-form-card, .occurrence-log { height: 100%; }
+.adjustment-grid { margin-top: 16px; }
+.financial-adjustment-form .button { margin-top: 13px; }
+.adjustment-direction, .adjustment-sign { display: inline-grid; place-items: center; flex: 0 0 auto; font-weight: 900; }
+.adjustment-direction { width: 34px; height: 34px; border-radius: 9px; }
+.adjustment-direction.addition, .adjustment-sign.addition { color: var(--green); background: var(--green-soft); }
+.adjustment-direction.deduction, .adjustment-sign.deduction { color: var(--red); background: var(--red-soft); }
+.adjustment-preview { display: flex; gap: 10px; margin-top: 13px; padding: 11px; border-radius: 9px; }
+.adjustment-preview.addition { color: #087357; background: var(--green-soft); }
+.adjustment-preview.deduction { color: #9e2940; background: var(--red-soft); }
+.adjustment-preview svg { flex: 0 0 auto; margin-top: 1px; }
+.adjustment-preview strong, .adjustment-preview span { display: block; }
+.adjustment-preview strong { font-size: .76rem; }
+.adjustment-preview span { margin-top: 2px; font-size: .63rem; }
+.adjustment-sign { width: 29px; height: 29px; border-radius: 8px; font-size: .85rem; }
+.manual-adjustment-row { padding-top: 9px; border-top: 1px dashed var(--line-strong); }
 .occurrence-form-card .button { margin-top: 13px; }
 .rule-preview { display: flex; gap: 10px; margin-top: 13px; padding: 11px; color: #77500c; background: var(--amber-soft); border-radius: 9px; }
 .rule-preview.compact { margin-top: 12px; }

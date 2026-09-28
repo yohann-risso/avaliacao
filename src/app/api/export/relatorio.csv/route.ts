@@ -14,12 +14,12 @@ export async function GET(request: Request) {
   const requested = new URL(request.url).searchParams.get("month") || "";
   const month = /^\d{4}-\d{2}$/.test(requested) ? requested : currentMonth();
   const report = await buildMonthlyReport(month);
-  const header = ["Funcionário", "Setor", "Função", "Grupo", "Semanas elegíveis", "Semanas avaliadas", "Ocorrências", "Pontos de regra", "Desconto de regras (R$)", "Impacto das regras", "Média (%)", "Base (R$)", "Monitoria fixa (R$)", "Tempo (R$)", "Total (R$)", "Status"];
+  const header = ["Funcionário", "Setor", "Função", "Grupo", "Semanas elegíveis", "Semanas avaliadas", "Ocorrências", "Pontos de regra", "Desconto de regras (R$)", "Impacto das regras", "Média (%)", "Base (R$)", "Monitoria fixa (R$)", "Tempo (R$)", "Ajustes manuais (R$)", "Total (R$)", "Status"];
   const lines = [header, ...report.rows.map((row) => [
     row.name, row.sector, row.role, row.group, row.eligibleWeeks, row.evaluatedWeeks, row.errors,
     row.rulePoints.toFixed(2), row.ruleDiscount.toFixed(2), row.ruleImpact,
     row.average?.toFixed(2) || "", row.basePayment.toFixed(2), row.monitorPayment.toFixed(2),
-    row.tenurePayment.toFixed(2), row.total.toFixed(2), row.status,
+    row.tenurePayment.toFixed(2), row.adjustmentTotal.toFixed(2), row.total.toFixed(2), row.status,
   ])].map((line) => line.map(csvCell).join(";"));
   return new Response(`\uFEFF${lines.join("\r\n")}`, {
     headers: {

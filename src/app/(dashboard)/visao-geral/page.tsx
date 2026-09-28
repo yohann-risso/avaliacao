@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import { currentMonth, dateBr, monthBr, normalizeMonday, todayBrazil, weeksForCompetencia } from "@/lib/dates";
 import { listActiveEmployees, listOccurrenceRowsForWeeks, listWeeklyEvaluations } from "@/lib/data";
+import { employeesVisibleTo } from "@/lib/employee-access";
 import { brl, pct } from "@/lib/money";
 import { buildMonthlyReport } from "@/lib/report";
 import { getEvaluationRule } from "@/lib/rules";
@@ -16,10 +17,12 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const weeks = weeksForCompetencia(month);
   const monday = normalizeMonday(todayBrazil());
   const focusWeek = weeks.includes(monday) ? monday : weeks.at(-1) || monday;
-  const [employees, evaluations, occurrences, report] = await Promise.all([
-    listActiveEmployees(),
-    listWeeklyEvaluations(weeks),
-    listOccurrenceRowsForWeeks(weeks),
+  const allEmployees = await listActiveEmployees();
+  const employees = employeesVisibleTo(user, allEmployees);
+  const employeeIds = employees.filter((employee) => !employee.is_leadership).map((employee) => employee.id);
+  const [evaluations, occurrences, report] = await Promise.all([
+    listWeeklyEvaluations(weeks, employeeIds),
+    listOccurrenceRowsForWeeks(weeks, employeeIds),
     user.role === "admin" ? buildMonthlyReport(month) : Promise.resolve(null),
   ]);
   const operators = employees.filter((employee) => !employee.is_leadership);
