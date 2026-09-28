@@ -1,5 +1,7 @@
 # Supabase e PostgreSQL
 
+> Documento legado da versão Streamlit. As conexões e RPCs externas de Picking/By-Box descritas abaixo não são usadas pela aplicação Next.js/Vercel.
+
 Esta aplicacao usa PostgreSQL/Supabase como banco oficial. Arquivos SQLite locais, como `avaliacoes.db`, nao sao fallback de execucao normal e ficam ignorados pelo repositorio. Use-os apenas como origem temporaria de migracao ou apoio em testes locais.
 
 ## Variaveis aceitas

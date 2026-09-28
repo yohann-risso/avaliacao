@@ -1,88 +1,91 @@
 # Avaliação & Bonificação
 
-App interno para cadastro de colaboradores, avaliação semanal, monitoria mensal e fechamento de bonificação da operação de estoque e expedição.
+Aplicação interna para cadastro de colaboradores, avaliação semanal, adicional fixo de monitoria e fechamento de bonificação da operação de estoque e expedição.
 
-## Stack escolhida
+## Stack atual
 
-- **Python 3.13**: linguagem principal do app.
-- **Streamlit**: interface rápida para uso administrativo interno, com menor custo de manutenção que um frontend separado.
-- **PostgreSQL/Supabase**: banco oficial da aplicação, com persistência e uso multiusuário.
-- **Pandas**: leitura, cálculo e montagem de tabelas para revisão e fechamento.
-- **ReportLab**: geração dos PDFs de fechamento, assinatura e anexos.
-- **CSS customizado em `theme.py`**: identidade visual própria sem adicionar complexidade de frontend.
+- **Next.js 16 + React 19 + TypeScript** com App Router;
+- **Node.js 24** no runtime padrão da Vercel (Fluid Compute);
+- **PostgreSQL/Supabase** já existente, acessado somente no servidor;
+- **Postgres.js** com uma conexão por instância e prepared statements desativados para o Transaction pooler;
+- **Server Components** para leituras e **Server Actions** para mutações;
+- **ExcelJS** e **pdf-lib** para exportações.
 
-Essa stack prioriza velocidade de uso, baixa fricção de manutenção e operação multiusuário. O banco da aplicação é o Supabase; bancos SQLite locais são ignorados pelo repositório e só devem ser usados como origem temporária de migração ou apoio de testes.
+A versão Streamlit foi mantida nos arquivos Python como referência temporária da migração. O deploy da Vercel usa `package.json`, `src/app` e `vercel.ts`; nenhum processo Python é necessário em produção.
 
-## Rodando localmente
+## Funcionalidades migradas
 
-```powershell
-python -m pip install -r requirements.txt
-python scripts/configure_supabase.py
-python -m streamlit run app.py
-```
+- login compatível com os hashes PBKDF2 já gravados em `login_users`;
+- criação do primeiro administrador;
+- perfis `admin` e `avaliador`, com vínculo ao avaliador operacional;
+- cadastro, edição, ativação e desativação de funcionários;
+- avaliação semanal em quatro semanas fixas, com faixas de pagamento e justificativas;
+- catálogo corporativo A01–A08, Q01–Q04, P01–P04 e C01–C04, com desconto automático por pontos;
+- adicional fixo de monitoria de R$ 300,00, sem avaliação mensal;
+- fechamento mensal com cobertura, pendências, valores e adicional por tempo de empresa;
+- exportação do fechamento em CSV e PDF;
+- exportação da semana em XLSX.
+- importação transacional do lote semanal em XLSX.
 
-Um modelo de secrets esta em `.streamlit/secrets.toml.example`.
+As RPCs antigas de produtividade de Picking e Packing/By-Box não fazem parte da aplicação Vercel. Itens e produtividade são preenchidos diretamente ou importados pelo XLSX.
 
-## Login
+## Configuração local
 
-O app cria automaticamente a tabela `login_users` no banco configurado. No primeiro acesso, quando ainda não houver usuários cadastrados, a tela inicial permite criar o primeiro administrador. Depois disso, o menu do sistema só aparece após login.
-
-Administradores podem usar **Usuários** para cadastrar novos acessos, definir perfil e vincular cada login a um avaliador ativo de coordenação/supervisão.
-
-A senha é gravada com hash PBKDF2, não em texto puro.
-
-## Banco Supabase/PostgreSQL
-
-O app exige uma connection string PostgreSQL/Supabase em uma destas chaves:
-
-```toml
-APP_DATABASE_URL = "postgresql://postgres.PROJECT_REF:SUA_SENHA@POOLER_HOST:5432/postgres?sslmode=require"
-```
-
-Também são aceitas `DATABASE_URL`, `SUPABASE_DB_URL`, `[database].url`, `[connections.supabase].url` e `[connections.postgres].url`.
-
-Para preencher automaticamente peças e produtividade a partir dos apps de picking, configure a fonte externa do projeto `picking-kaisan` (`kinpwzuobsmfkjefnrdc`) em chaves próprias. Use `PICKING_SUPABASE_URL` + `PICKING_SUPABASE_KEY` ou uma connection string PostgreSQL em `PICKING_DATABASE_URL`. O app não usa `APP_DATABASE_URL` como fallback para essas RPCs, porque elas ficam em outro banco.
-
-Para configurar localmente sem expor a senha no historico do terminal, rode `python scripts/configure_supabase.py` e cole a connection string quando solicitado. O script valida a conexao, garante o schema remoto e grava `.streamlit/secrets.toml`, que ja e ignorado pelo Git.
-
-No Streamlit Community Cloud, coloque essa chave em **App settings > Secrets**. Se for necessário repetir a migração de um SQLite local para o Supabase:
+Requisitos: Node.js 24 e acesso ao banco Supabase atual.
 
 ```powershell
-python scripts/migrate_sqlite_to_supabase.py --sqlite-path ".\avaliacoes.db" --database-url "postgresql://..." --replace
+Copy-Item .env.example .env.local
+npm install
+npm run dev
 ```
 
-Use `--replace` apenas quando houver backup confirmado, porque ele limpa as tabelas antes da importação.
+Preencha `.env.local`:
 
-## Publicando no Streamlit Community Cloud
+```dotenv
+DATABASE_URL="postgresql://postgres.PROJECT_REF:SENHA@POOLER_HOST:6543/postgres?sslmode=require"
+SESSION_SECRET="um-segredo-longo-com-pelo-menos-32-caracteres"
+```
 
-O projeto já está organizado para deploy no Streamlit Cloud:
+Use a URL do **Transaction pooler** do Supabase, normalmente na porta `6543`. O código usa `max: 1`, `prepare: false` e SSL obrigatório para o ambiente serverless.
 
-- Repositório: `yohann-risso/avaliacao`
-- Branch: `main`
-- Arquivo principal: `app.py`
-- Dependências: `requirements.txt`
-- Tema: `.streamlit/config.toml`
+O schema continua versionado em `supabase/migrations/`. Se o banco já era usado pela versão Streamlit, não há migração de dados: as mesmas tabelas são reutilizadas.
 
-No painel do [Streamlit Community Cloud](https://share.streamlit.io/), clique em **Create app**, selecione o repositório acima e informe `app.py` como entrypoint. Em **Advanced settings**, escolha Python 3.13 para manter a mesma versão usada no desenvolvimento local.
+## Verificação
 
-Observação importante: sem `APP_DATABASE_URL` ou equivalente, o app para na tela inicial com erro de configuração. Ele não usa mais SQLite local como fallback.
+```powershell
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
 
-## Direção de UI/UX
+## Deploy na Vercel
 
-O app deve parecer uma ferramenta operacional: claro, confiável, direto e fácil de revisar. A navegação segue o fluxo real do trabalho:
+1. Importe o repositório na Vercel.
+2. Cadastre `DATABASE_URL` e `SESSION_SECRET` nos ambientes desejados.
+3. Confirme Node.js 24 nas configurações do projeto.
+4. Publique; o framework e o build são declarados em `vercel.ts`.
 
-1. Funcionários
-2. Avaliação Semanal
-3. Monitoria Mensal
-4. Relatório Mensal
+Também é possível usar a CLI:
 
-As decisões visuais e de interação estão documentadas em [docs/STYLE_GUIDE.md](docs/STYLE_GUIDE.md).
+```powershell
+npx vercel link
+npx vercel env add DATABASE_URL
+npx vercel env add SESSION_SECRET
+npx vercel deploy
+```
 
-## Documentação completa
+Não coloque a senha do banco ou `SESSION_SECRET` em variáveis `NEXT_PUBLIC_*`.
 
-A documentação da aplicação está em [docs/](docs/):
+## Estrutura principal
 
-- [Guia operacional](docs/GUIA_OPERACIONAL.md): uso da app no ciclo mensal.
-- [Guia resumido para colaboradores](docs/GUIA_COLABORADORES.md): explicação simples das regras de avaliação e bonificação.
-- [Referência técnica](docs/REFERENCIA_TECNICA.md): arquitetura, banco, regras, testes e deploy.
-- [Supabase e PostgreSQL](docs/SUPABASE.md): configuração do banco remoto e migração do SQLite.
+```text
+src/app/                 rotas, páginas, Server Actions e exportações
+src/components/          componentes da interface
+src/lib/                 autenticação, banco, regras, datas e relatórios
+supabase/migrations/     schema PostgreSQL existente
+vercel.ts                configuração do projeto Vercel
+```
+
+Detalhes da decisão técnica e do corte de migração estão em [docs/MIGRACAO_VERCEL.md](docs/MIGRACAO_VERCEL.md).
+As regras implementadas e a ordem do cálculo estão documentadas em [docs/REGRAS_CALCULO.md](docs/REGRAS_CALCULO.md).

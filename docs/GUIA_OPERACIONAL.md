@@ -1,5 +1,7 @@
 # Guia operacional
 
+> Documento legado da versão Streamlit. Na versão Vercel, as RPCs de Picking/By-Box foram removidas e a monitoria passou a ser um adicional fixo. Consulte `README.md` e `docs/REGRAS_CALCULO.md` para o fluxo atual.
+
 Este guia descreve como operar a app **Avaliacao & Bonificacao** no ciclo real de trabalho: cadastrar funcionarios, lancar avaliacoes semanais, avaliar monitoria mensal e gerar o fechamento.
 
 ## Objetivo da app

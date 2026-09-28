@@ -1,5 +1,7 @@
 # Referencia tecnica
 
+> Documento legado da versão Streamlit. A implementação Next.js/Vercel não usa RPCs de Picking/By-Box e não avalia monitoria mensalmente.
+
 Esta referencia documenta a estrutura interna da app **Avaliacao & Bonificacao** para manutencao, auditoria e evolucao.
 
 ## Stack
