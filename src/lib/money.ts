@@ -1,6 +1,6 @@
 import { MONITOR_FIXED_VALUE, PAY_BANDS, TENURE_BONUS_PER_YEAR, WEEKLY_CRITERIA, type WeeklyCriterionKey } from "@/lib/constants";
 import { monthReferenceDate, yearsInCompany } from "@/lib/dates";
-import { EVALUATION_RULES, monthlyOccurrenceImpact, ruleQuantity, type OccurrenceInput } from "@/lib/rules";
+import { aggregateOccurrenceQuantities, EVALUATION_RULES, monthlyOccurrenceImpact, type OccurrenceInput } from "@/lib/rules";
 
 export type FinancialAdjustmentInput = { amount: number | string };
 
@@ -31,13 +31,14 @@ export function bandMultiplier(value: unknown): number {
 
 export function weeklyPaymentBreakdown(row: Record<string, unknown>, occurrences: OccurrenceInput[] = []) {
   const weekCount = 4;
+  const quantitiesByCode = aggregateOccurrenceQuantities(occurrences);
   const byCriterion = Object.fromEntries(WEEKLY_CRITERIA.map((criterion) => {
     const gross = (criterion.monthlyCap / weekCount) * bandMultiplier(row[`${criterion.key}_pct`]);
     return [criterion.key, { gross, paid: gross, discountPercentage: 0 }];
   })) as Record<(typeof WEEKLY_CRITERIA)[number]["key"], { gross: number; paid: number; discountPercentage: number }>;
 
   for (const rule of EVALUATION_RULES) {
-    const qty = ruleQuantity(occurrences, rule.code);
+    const qty = quantitiesByCode.get(rule.code) || 0;
     if (!qty) continue;
     let pointBudget = Number(rule.weeklyPointValue ?? rule.points) * qty;
     const desired = new Map<WeeklyCriterionKey, number>();
@@ -68,7 +69,7 @@ export function weeklyPaymentBreakdown(row: Record<string, unknown>, occurrences
   }
   const gross = Object.values(byCriterion).reduce((sum, item) => sum + item.gross, 0);
   const total = Object.values(byCriterion).reduce((sum, item) => sum + item.paid, 0);
-  const occurrencePoints = EVALUATION_RULES.reduce((sum, rule) => sum + rule.points * ruleQuantity(occurrences, rule.code), 0);
+  const occurrencePoints = EVALUATION_RULES.reduce((sum, rule) => sum + rule.points * (quantitiesByCode.get(rule.code) || 0), 0);
   return { byCriterion, gross, total, discount: gross - total, occurrencePoints };
 }
 

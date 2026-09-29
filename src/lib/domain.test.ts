@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { competenciaFromWeek, eligibleWeeks, weeksForCompetencia } from "@/lib/dates";
 import { bandMultiplier, financialAdjustmentTotal, monthlyBasePayment, monitorPayment, tenurePayment, totalAfterFinancialAdjustments, weeklyPayment, weeklyPaymentBreakdown } from "@/lib/money";
-import { getEvaluationRule, monthlyOccurrenceImpact } from "@/lib/rules";
+import { aggregateOccurrenceQuantities, getEvaluationRule, monthlyOccurrenceImpact, weeklyOccurrenceImpact } from "@/lib/rules";
 
 describe("competência operacional", () => {
   it("move para o mês seguinte quando a sexta passa do dia 25", () => {
@@ -82,6 +82,21 @@ describe("regras corporativas", () => {
     expect(a02.discount).toBeCloseTo(47.5, 6);
     const a02TwoDays = weeklyPaymentBreakdown(fullScore(weeks[0]), [{ error_type: "A02", qty: 2 }]);
     expect(a02TwoDays.discount).toBeCloseTo(77.5, 6);
+  });
+
+  it("soma lançamentos separados do mesmo código na semana", () => {
+    const occurrences = [
+      { error_type: "Q03", qty: 1 },
+      { error_type: "q03", qty: 1 },
+    ];
+    expect(aggregateOccurrenceQuantities(occurrences).get("Q03")).toBe(2);
+    expect(weeklyOccurrenceImpact(occurrences)).toMatchObject({ points: 25, recognizedQuantity: 2 });
+
+    const separateRows = weeklyPaymentBreakdown(fullScore(weeks[0]), occurrences);
+    const combinedQuantity = weeklyPaymentBreakdown(fullScore(weeks[0]), [{ error_type: "Q03", qty: 2 }]);
+    expect(separateRows.discount).toBeCloseTo(25, 6);
+    expect(separateRows.occurrencePoints).toBe(25);
+    expect(separateRows).toEqual(combinedQuantity);
   });
 
   it("limita o desconto ao bônus disponível e à diretriz", () => {

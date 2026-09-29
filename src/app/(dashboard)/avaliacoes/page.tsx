@@ -13,7 +13,7 @@ import { dateBr, normalizeMonday, todayBrazil } from "@/lib/dates";
 import { getWeeklyEvaluation, listActiveEmployees, listEvaluators, listWeeklyBonusAdjustments, listWeeklyErrors, listWeeklyEvaluations } from "@/lib/data";
 import { brl, financialAdjustmentTotal, weeklyPaymentBreakdown } from "@/lib/money";
 import { isTeamScopedRole, userRoleLabel } from "@/lib/permissions";
-import { getEvaluationRule, monthlyOccurrenceImpact, weeklyOccurrenceImpact } from "@/lib/rules";
+import { aggregateOccurrenceQuantities, getEvaluationRule, monthlyOccurrenceImpact, weeklyOccurrenceImpact } from "@/lib/rules";
 import { employeesVisibleTo } from "@/lib/employee-access";
 
 function safeWeek(value?: string): string {
@@ -50,6 +50,11 @@ export default async function EvaluationsPage({
   const scoreRow: Record<string, unknown> = { week_start: week };
   const preview = weeklyPaymentBreakdown(evaluation || scoreRow, occurrences);
   const weeklyImpact = weeklyOccurrenceImpact(occurrences);
+  const weeklyPenalties = [...aggregateOccurrenceQuantities(occurrences)].map(([code, quantity]) => ({
+    code,
+    quantity,
+    rule: getEvaluationRule(code),
+  }));
   const monthlyImpact = monthlyOccurrenceImpact(occurrences);
   const adjustmentTotal = financialAdjustmentTotal(adjustments);
   const completed = weekEvaluations.length;
@@ -96,6 +101,7 @@ export default async function EvaluationsPage({
               <OccurrenceForm key={`${selected.id}:${week}`} employeeId={selected.id} weekStart={week} />
               <div className="panel occurrence-log">
                 <div className="panel-head"><div><h3>Registros da semana</h3><p>{occurrences.length ? `${weeklyImpact.recognizedQuantity} ocorrência(s) reconhecida(s)` : "Nenhum desconto aplicado"}</p></div><strong className={preview.discount ? "danger-text" : "success-text"}>-{brl(preview.discount)}</strong></div>
+                {weeklyPenalties.length ? <div className="penalty-totals" aria-label="Penalidades somadas por código">{weeklyPenalties.map(({ code, quantity, rule }) => <span key={code}><b>{code}</b>{quantity} × {(rule?.points || 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} = <strong>{((rule?.points || 0) * quantity).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pts</strong></span>)}</div> : null}
                 {occurrences.length ? <div className="occurrence-items">{occurrences.map((item) => {
                   const rule = getEvaluationRule(item.error_type);
                   return <article key={item.id}><span className={`rule-code ${item.severity === "CRITICO" ? "danger" : item.severity === "ALTO" ? "warning" : ""}`}>{item.error_type}</span><div><strong>{rule?.occurrence || item.error_type}</strong><p>{item.qty} × {(rule?.points || 0).toLocaleString("pt-BR")} pts{item.notes ? ` · ${item.notes}` : ""}</p></div><form action={deleteWeeklyOccurrenceAction}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="employee_id" value={selected.id} /><input type="hidden" name="week_start" value={week} /><button className="icon-button danger" type="submit" aria-label="Remover ocorrência"><Trash2 size={15} /></button></form></article>;

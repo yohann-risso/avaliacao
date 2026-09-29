@@ -129,10 +129,20 @@ function quantity(occurrence: OccurrenceInput): number {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
 }
 
+export function aggregateOccurrenceQuantities(occurrences: OccurrenceInput[]): Map<string, number> {
+  const quantities = new Map<string, number>();
+  for (const occurrence of occurrences) {
+    const rule = getEvaluationRule(occurrence.error_type);
+    const occurrenceQuantity = quantity(occurrence);
+    if (!rule || !occurrenceQuantity) continue;
+    quantities.set(rule.code, (quantities.get(rule.code) || 0) + occurrenceQuantity);
+  }
+  return quantities;
+}
+
 export function ruleQuantity(occurrences: OccurrenceInput[], code: string): number {
-  return occurrences.reduce((total, occurrence) => {
-    return getEvaluationRule(occurrence.error_type)?.code === code ? total + quantity(occurrence) : total;
-  }, 0);
+  const normalizedCode = getEvaluationRule(code)?.code || String(code || "").trim().toUpperCase();
+  return aggregateOccurrenceQuantities(occurrences).get(normalizedCode) || 0;
 }
 
 export type WeeklyOccurrenceImpact = {
@@ -147,10 +157,9 @@ export function weeklyOccurrenceImpact(occurrences: OccurrenceInput[]): WeeklyOc
     points: 0,
     recognizedQuantity: 0,
   };
-  for (const occurrence of occurrences) {
-    const rule = getEvaluationRule(occurrence.error_type);
-    const qty = quantity(occurrence);
-    if (!rule || !qty) continue;
+  for (const [code, qty] of aggregateOccurrenceQuantities(occurrences)) {
+    const rule = getEvaluationRule(code);
+    if (!rule) continue;
     result.points += rule.points * qty;
     result.recognizedQuantity += qty;
     for (const criterion of WEEKLY_CRITERIA) {
@@ -174,10 +183,9 @@ export function monthlyOccurrenceImpact(occurrences: OccurrenceInput[]): Monthly
   let a01Quantity = 0;
   let points = 0;
   let assiduidadePointValue = 0;
-  for (const occurrence of occurrences) {
-    const rule = getEvaluationRule(occurrence.error_type);
-    const qty = quantity(occurrence);
-    if (!rule || !qty) continue;
+  for (const [code, qty] of aggregateOccurrenceQuantities(occurrences)) {
+    const rule = getEvaluationRule(code);
+    if (!rule) continue;
     points += rule.points * qty;
     assiduidadeDiscount += Number(rule.monthlyAssiduidadeDiscount || 0) * qty;
     assiduidadePointValue += Number(rule.monthlyAssiduidadePointValue || 0) * qty;

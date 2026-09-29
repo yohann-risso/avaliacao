@@ -350,6 +350,9 @@ small { line-height: 1.35; }
 .rule-code { min-width: 42px; min-height: 29px; display: inline-grid; place-items: center; padding: 0 8px; border-radius: 8px; color: var(--blue); background: var(--blue-soft); font-size: .68rem; font-weight: 850; }
 .rule-code.warning { color: var(--amber); background: var(--amber-soft); }
 .rule-code.danger { color: var(--red); background: var(--red-soft); }
+.penalty-totals { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 7px; }
+.penalty-totals span { display: inline-flex; align-items: center; gap: 5px; padding: 6px 8px; border: 1px solid #f2d699; border-radius: 8px; color: #805007; background: var(--amber-soft); font-size: .62rem; }
+.penalty-totals b { color: var(--ink); font-size: .65rem; }
 .occurrence-items { display: grid; }
 .occurrence-items article { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: start; padding: 11px 0; border-bottom: 1px solid var(--line); }
 .occurrence-items article:last-child { border-bottom: 0; }
