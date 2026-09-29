@@ -26,6 +26,14 @@ export type ReportRow = {
   adjustmentTotal: number;
   total: number;
   status: "OK" | "Pendente";
+  weeklyPercentages: Array<{
+    weekStart: string;
+    assiduidade: number;
+    qualidade: number;
+    taxaErros: number;
+    produtividade: number;
+    comportamento: number;
+  }>;
 };
 
 export type MonthlyReport = {
@@ -39,10 +47,13 @@ export type MonthlyReport = {
   weeklyDone: number;
 };
 
-export async function buildMonthlyReport(month: string): Promise<MonthlyReport> {
+export async function buildMonthlyReport(
+  month: string,
+  { includeInactive = true }: { includeInactive?: boolean } = {},
+): Promise<MonthlyReport> {
   const weeks = weeksForCompetencia(month);
   const [employees, weekly, errors, adjustments] = await Promise.all([
-    listEmployees(true),
+    listEmployees(includeInactive),
     listWeeklyEvaluations(weeks),
     listWeeklyErrorsForWeeks(weeks),
     listBonusAdjustmentsForWeeks(weeks),
@@ -117,6 +128,16 @@ export async function buildMonthlyReport(month: string): Promise<MonthlyReport> 
       adjustmentTotal,
       total: totalAfterFinancialAdjustments(basePayment + additionalMonitor + tenure, employeeAdjustments),
       status,
+      weeklyPercentages: [...employeeWeekly]
+        .sort((left, right) => String(left.week_start).trim().localeCompare(String(right.week_start).trim()))
+        .map((item) => ({
+          weekStart: String(item.week_start).trim(),
+          assiduidade: Number(item.assiduidade_pct ?? 0),
+          qualidade: Number(item.qualidade_pct ?? 0),
+          taxaErros: Number(item.taxa_erros_pct ?? 0),
+          produtividade: Number(item.produtividade_pct ?? 0),
+          comportamento: Number(item.comportamento_pct ?? 0),
+        })),
     });
   }
   rows.sort((left, right) => right.total - left.total || left.name.localeCompare(right.name, "pt-BR"));

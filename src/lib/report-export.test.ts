@@ -1,7 +1,7 @@
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
-import { buildExecutiveReportPdf, buildReportCsv } from "@/lib/report-export";
+import { buildExecutiveReportPdf, buildReportCsv, sortReportRowsAlphabetically } from "@/lib/report-export";
 import type { ReportRow } from "@/lib/report";
 
 function row(index: number): ReportRow {
@@ -25,6 +25,16 @@ function row(index: number): ReportRow {
     adjustmentTotal: 0,
     total: 580,
     status: "OK",
+    weeklyPercentages: [
+      {
+        weekStart: "2026-08-31",
+        assiduidade: 100,
+        qualidade: 90,
+        taxaErros: 80,
+        produtividade: 95,
+        comportamento: 100,
+      },
+    ],
   };
 }
 
@@ -41,8 +51,17 @@ describe("exportações do fechamento", () => {
       month: "2026-09",
       rows: Array.from({ length: 35 }, (_, index) => row(index + 1)),
       sectors: ["Operações", "Qualidade"],
+      includeInactive: true,
     });
     const pdf = await PDFDocument.load(bytes);
     expect(pdf.getPageCount()).toBeGreaterThan(1);
+  });
+
+  it("organiza as pessoas em ordem alfabética no PDF", () => {
+    const rows = [row(3), row(1), row(2)];
+    rows[0].name = "Zélia";
+    rows[1].name = "Ágata";
+    rows[2].name = "Bruno";
+    expect(sortReportRowsAlphabetically(rows).map((item) => item.name)).toEqual(["Ágata", "Bruno", "Zélia"]);
   });
 });

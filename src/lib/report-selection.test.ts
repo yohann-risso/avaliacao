@@ -29,6 +29,7 @@ function row(overrides: Partial<ReportRow>): ReportRow {
     adjustmentTotal: 0,
     total: 580,
     status: "OK",
+    weeklyPercentages: [],
     ...overrides,
   };
 }
@@ -59,6 +60,8 @@ describe("seleção de setores do fechamento", () => {
     expect(summary.ruleDiscount).toBe(25);
     expect(summary.monitorTotal).toBe(300);
     expect(summary.adjustmentTotal).toBe(-20);
+    expect(summary.baseTotal).toBe(1100);
+    expect(summary.tenureTotal).toBe(60);
   });
 
   it("considera coberta uma seleção formada apenas por liderança", () => {
@@ -67,9 +70,10 @@ describe("seleção de setores do fechamento", () => {
   });
 
   it("mantém todos os setores na query de exportação", () => {
-    const params = new URLSearchParams(reportExportQuery("2026-09", ["Operações", "Qualidade"], "ana"));
+    const params = new URLSearchParams(reportExportQuery("2026-09", ["Operações", "Qualidade"], "ana", true));
     expect(params.get("month")).toBe("2026-09");
     expect(params.getAll("sector")).toEqual(["Operações", "Qualidade"]);
     expect(params.get("q")).toBe("ana");
+    expect(params.get("inactive")).toBe("1");
   });
 });

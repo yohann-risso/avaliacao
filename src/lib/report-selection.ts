@@ -9,6 +9,8 @@ export type ReportSummary = {
   monitorTotal: number;
   adjustmentTotal: number;
   ruleDiscount: number;
+  baseTotal: number;
+  tenureTotal: number;
   recurrenceBlocks: number;
 };
 
@@ -44,18 +46,21 @@ export function summarizeReportRows(rows: ReportRow[]): ReportSummary {
     monitorTotal: rows.reduce((sum, row) => sum + row.monitorPayment, 0),
     adjustmentTotal: rows.reduce((sum, row) => sum + row.adjustmentTotal, 0),
     ruleDiscount: rows.reduce((sum, row) => sum + row.ruleDiscount, 0),
+    baseTotal: rows.reduce((sum, row) => sum + row.basePayment, 0),
+    tenureTotal: rows.reduce((sum, row) => sum + row.tenurePayment, 0),
     recurrenceBlocks: rows.filter((row) => row.ruleImpact.includes("bloqueado")).length,
   };
 }
 
-export function reportExportQuery(month: string, sectors: string[], query = ""): string {
+export function reportExportQuery(month: string, sectors: string[], query = "", includeInactive = false): string {
   const params = new URLSearchParams({ month });
   for (const sector of sectors) params.append("sector", sector);
   if (query.trim()) params.set("q", query.trim());
+  params.set("inactive", includeInactive ? "1" : "0");
   return params.toString();
 }
 
 export function reportScopeLabel(sectors: string[], query = ""): string {
   const sectorLabel = sectors.length ? sectors.join(", ") : "Todos os setores";
-  return query.trim() ? `${sectorLabel} · busca: ${query.trim()}` : sectorLabel;
+  return query.trim() ? `${sectorLabel} - busca: ${query.trim()}` : sectorLabel;
 }
