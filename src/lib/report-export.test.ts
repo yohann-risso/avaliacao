@@ -48,14 +48,23 @@ describe("exportações do fechamento", () => {
   });
 
   it("gera PDF paginado com o escopo selecionado", async () => {
+    const rows = Array.from({ length: 35 }, (_, index) => row(index + 1));
+    rows[0].occurrences = [{
+      id: 1,
+      weekStart: "2026-09-07",
+      code: "Q03",
+      severity: "MEDIO",
+      quantity: 2,
+      notes: "Duas falhas na separação",
+    }];
     const bytes = await buildExecutiveReportPdf({
       month: "2026-09",
-      rows: Array.from({ length: 35 }, (_, index) => row(index + 1)),
+      rows,
       sectors: ["Operações", "Qualidade"],
       includeInactive: true,
     });
     const pdf = await PDFDocument.load(bytes);
-    expect(pdf.getPageCount()).toBeGreaterThan(1);
+    expect(pdf.getPageCount()).toBeGreaterThan(2);
   });
 
   it("organiza as pessoas em ordem alfabética no PDF", () => {

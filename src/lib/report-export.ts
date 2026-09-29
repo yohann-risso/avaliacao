@@ -4,6 +4,7 @@ import { dateBr, monthBr } from "@/lib/dates";
 import { brl } from "@/lib/money";
 import { reportScopeLabel, summarizeReportRows } from "@/lib/report-selection";
 import type { ReportRow } from "@/lib/report";
+import { getEvaluationRule } from "@/lib/rules";
 
 const CSV_HEADER = [
   "Funcionário",
@@ -93,6 +94,8 @@ export async function buildExecutiveReportPdf({
   const financialLabels = ["Funcionário", "Setor", "Penalidades", "Base", "Monitoria", "Tempo de casa", "Ajustes", "Total"];
   const weeklyColumns = [34, 206, 320, 390, 462, 534, 606, 682];
   const weeklyLabels = ["Funcionário", "Setor", "Semana", "Assiduidade", "Qualidade", "Taxa de erros", "Produtividade", "Comportamento"];
+  const occurrenceColumns = [34, 185, 285, 347, 393, 570, 610, 660];
+  const occurrenceLabels = ["Funcionário", "Setor", "Semana", "Regra", "Ocorrência", "Qtd.", "Pontos", "Contexto"];
   let page = pdf.addPage(pageSize);
   let y = 548;
 
@@ -116,6 +119,10 @@ export async function buildExecutiveReportPdf({
     weeklyLabels.forEach((label, index) => page.drawText(pdfText(label), { x: weeklyColumns[index], y, font: bold, size: 7.2, color: rgb(0.38, 0.46, 0.54) }));
     y -= 13;
   };
+  const drawOccurrenceLabels = () => {
+    occurrenceLabels.forEach((label, index) => page.drawText(pdfText(label), { x: occurrenceColumns[index], y, font: bold, size: 7.2, color: rgb(0.38, 0.46, 0.54) }));
+    y -= 13;
+  };
   const newFinancialPage = () => {
     page = pdf.addPage(pageSize);
     drawHeader();
@@ -127,6 +134,12 @@ export async function buildExecutiveReportPdf({
     drawHeader();
     drawSectionTitle("Percentuais por quesito - semana a semana");
     drawWeeklyLabels();
+  };
+  const newOccurrencePage = () => {
+    page = pdf.addPage(pageSize);
+    drawHeader();
+    drawSectionTitle("Ocorrências da competência");
+    drawOccurrenceLabels();
   };
   const drawSummaryTable = () => {
     const metrics = [
@@ -206,6 +219,35 @@ export async function buildExecutiveReportPdf({
       x: weeklyColumns[index],
       y,
       font: index === 0 ? bold : regular,
+      size: 7,
+      color: rgb(0.07, 0.15, 0.23),
+    }));
+    y -= 18;
+  }
+
+  const occurrenceRows = sortedRows.flatMap((row) => row.occurrences.map((occurrence) => ({ row, occurrence })));
+  newOccurrencePage();
+  if (!occurrenceRows.length) {
+    page.drawText(pdfText("Não há ocorrências na competência para os filtros selecionados."), { x: 34, y: y - 10, font: regular, size: 10, color: rgb(0.38, 0.46, 0.54) });
+  }
+  for (const item of occurrenceRows) {
+    if (y < 45) newOccurrencePage();
+    const rule = getEvaluationRule(item.occurrence.code);
+    page.drawLine({ start: { x: 34, y: y - 5 }, end: { x: 810, y: y - 5 }, thickness: 0.5, color: rgb(0.86, 0.89, 0.92) });
+    const values = [
+      truncated(item.row.name, 25),
+      truncated(item.row.sector, 16),
+      dateBr(item.occurrence.weekStart),
+      truncated(item.occurrence.code, 8),
+      truncated(rule?.occurrence || "Regra legada", 29),
+      String(item.occurrence.quantity),
+      ((rule?.points || 0) * item.occurrence.quantity).toLocaleString("pt-BR", { maximumFractionDigits: 2 }),
+      truncated(item.occurrence.notes || "Sem observação", 25),
+    ];
+    values.forEach((value, index) => page.drawText(pdfText(value), {
+      x: occurrenceColumns[index],
+      y,
+      font: index === 0 || index === 3 ? bold : regular,
       size: 7,
       color: rgb(0.07, 0.15, 0.23),
     }));
