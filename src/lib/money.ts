@@ -44,7 +44,8 @@ export function weeklyPaymentBreakdown(row: Record<string, unknown>, occurrences
     const desired = new Map<WeeklyCriterionKey, number>();
     for (const criterion of WEEKLY_CRITERIA) {
       const percentage = Math.min(100, Number(rule.weeklyDiscounts[criterion.key] || 0) * qty);
-      if (percentage > 0) desired.set(criterion.key, byCriterion[criterion.key].gross * percentage / 100);
+      const weeklyReference = criterion.monthlyCap / weekCount;
+      if (percentage > 0) desired.set(criterion.key, weeklyReference * percentage / 100);
     }
 
     for (const key of rule.priorityCriteria || []) {

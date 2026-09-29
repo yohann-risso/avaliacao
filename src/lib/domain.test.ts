@@ -99,6 +99,26 @@ describe("regras corporativas", () => {
     expect(separateRows).toEqual(combinedQuantity);
   });
 
+  it("calcula a penalidade sobre a referência integral do quesito semanal", () => {
+    const partialScore = {
+      ...fullScore(weeks[0]),
+      qualidade_pct: 80,
+      taxa_erros_pct: 80,
+      comportamento_pct: 95,
+    };
+    const result = weeklyPaymentBreakdown(partialScore, [
+      { error_type: "Q03", qty: 1 },
+      { error_type: "Q03", qty: 1 },
+      { error_type: "C04", qty: 1 },
+    ]);
+
+    expect(result.byCriterion.qualidade).toMatchObject({ gross: 12.5, paid: 0 });
+    expect(result.byCriterion.taxa_erros).toMatchObject({ gross: 12.5, paid: 0 });
+    expect(result.byCriterion.comportamento).toMatchObject({ gross: 25, paid: 22.5 });
+    expect(result.occurrencePoints).toBe(27.5);
+    expect(result.discount).toBeCloseTo(27.5, 6);
+  });
+
   it("limita o desconto ao bônus disponível e à diretriz", () => {
     const lowScore = { ...fullScore(weeks[0]), produtividade_pct: 70 };
     const result = weeklyPaymentBreakdown(lowScore, [{ error_type: "P01", qty: 1 }]);
