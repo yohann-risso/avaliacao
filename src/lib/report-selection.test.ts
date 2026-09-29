@@ -4,6 +4,7 @@ import {
   filterReportRows,
   normalizeSectorSelection,
   reportExportQuery,
+  reportOccurrences,
   summarizeReportRows,
 } from "@/lib/report-selection";
 import type { ReportRow } from "@/lib/report";
@@ -29,6 +30,7 @@ function row(overrides: Partial<ReportRow>): ReportRow {
     adjustmentTotal: 0,
     total: 580,
     status: "OK",
+    occurrences: [],
     weeklyPercentages: [],
     ...overrides,
   };
@@ -62,6 +64,18 @@ describe("seleção de setores do fechamento", () => {
     expect(summary.adjustmentTotal).toBe(-20);
     expect(summary.baseTotal).toBe(1100);
     expect(summary.tenureTotal).toBe(60);
+  });
+
+  it("traz ocorrências somente das pessoas que permaneceram nos filtros", () => {
+    const rowsWithOccurrences = [
+      row({ employeeId: 1, name: "Ana", sector: "Operações", occurrences: [{ id: 10, weekStart: "2026-09-07", code: "Q03", severity: "MEDIO", quantity: 2, notes: "Duas falhas" }] }),
+      row({ employeeId: 2, name: "Bruno", sector: "Qualidade", occurrences: [{ id: 11, weekStart: "2026-09-14", code: "C04", severity: "BAIXO", quantity: 1, notes: "" }] }),
+    ];
+
+    const occurrences = reportOccurrences(filterReportRows(rowsWithOccurrences, ["Qualidade"]));
+
+    expect(occurrences).toHaveLength(1);
+    expect(occurrences[0]).toMatchObject({ employeeName: "Bruno", code: "C04", quantity: 1 });
   });
 
   it("considera coberta uma seleção formada apenas por liderança", () => {

@@ -1,5 +1,12 @@
 import type { ReportRow } from "@/lib/report";
 
+export type FilteredReportOccurrence = ReportRow["occurrences"][number] & {
+  employeeId: number;
+  employeeName: string;
+  sector: string;
+  role: string;
+};
+
 export type ReportSummary = {
   total: number;
   pending: number;
@@ -31,6 +38,20 @@ export function filterReportRows(rows: ReportRow[], sectors: string[], query = "
     const searchable = `${row.name} ${row.role} ${row.sector}`.toLocaleLowerCase("pt-BR");
     return matchesSector && (!normalizedQuery || searchable.includes(normalizedQuery));
   });
+}
+
+export function reportOccurrences(rows: ReportRow[]): FilteredReportOccurrence[] {
+  return rows
+    .flatMap((row) => row.occurrences.map((occurrence) => ({
+      ...occurrence,
+      employeeId: row.employeeId,
+      employeeName: row.name,
+      sector: row.sector,
+      role: row.role,
+    })))
+    .sort((left, right) => left.employeeName.localeCompare(right.employeeName, "pt-BR")
+      || right.weekStart.localeCompare(left.weekStart)
+      || right.id - left.id);
 }
 
 export function summarizeReportRows(rows: ReportRow[]): ReportSummary {

@@ -25,6 +25,7 @@ function row(index: number): ReportRow {
     adjustmentTotal: 0,
     total: 580,
     status: "OK",
+    occurrences: [],
     weeklyPercentages: [
       {
         weekStart: "2026-08-31",

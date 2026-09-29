@@ -26,6 +26,14 @@ export type ReportRow = {
   adjustmentTotal: number;
   total: number;
   status: "OK" | "Pendente";
+  occurrences: Array<{
+    id: number;
+    weekStart: string;
+    code: string;
+    severity: string;
+    quantity: number;
+    notes: string;
+  }>;
   weeklyPercentages: Array<{
     weekStart: string;
     assiduidade: number;
@@ -65,9 +73,7 @@ export async function buildMonthlyReport(
     weeklyByEmployee.set(item.employee_id, current);
   }
   const errorsByEmployeeRows = new Map<number, typeof errors>();
-  const errorsByEmployee = new Map<number, number>();
   for (const item of errors) {
-    errorsByEmployee.set(item.employee_id, (errorsByEmployee.get(item.employee_id) || 0) + Number(item.qty || 0));
     const current = errorsByEmployeeRows.get(item.employee_id) || [];
     current.push(item);
     errorsByEmployeeRows.set(item.employee_id, current);
@@ -117,7 +123,7 @@ export async function buildMonthlyReport(
       eligibleWeeks: isLeadership ? leadershipWeeks.length : validWeeks.length,
       evaluatedWeeks: isLeadership ? 0 : employeeWeekly.length,
       missingWeeks,
-      errors: errorsByEmployee.get(employee.id) || 0,
+      errors: employeeErrors.reduce((sum, item) => sum + Number(item.qty || 0), 0),
       rulePoints: baseBreakdown.points,
       ruleDiscount: baseBreakdown.discount,
       ruleImpact,
@@ -128,6 +134,16 @@ export async function buildMonthlyReport(
       adjustmentTotal,
       total: totalAfterFinancialAdjustments(basePayment + additionalMonitor + tenure, employeeAdjustments),
       status,
+      occurrences: [...employeeErrors]
+        .sort((left, right) => String(right.week_start).trim().localeCompare(String(left.week_start).trim()) || right.id - left.id)
+        .map((item) => ({
+          id: item.id,
+          weekStart: String(item.week_start).trim(),
+          code: String(item.error_type).trim().toUpperCase(),
+          severity: String(item.severity).trim().toUpperCase(),
+          quantity: Number(item.qty || 0),
+          notes: String(item.notes || "").trim(),
+        })),
       weeklyPercentages: [...employeeWeekly]
         .sort((left, right) => String(left.week_start).trim().localeCompare(String(right.week_start).trim()))
         .map((item) => ({

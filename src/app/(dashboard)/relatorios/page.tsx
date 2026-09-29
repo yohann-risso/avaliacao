@@ -5,8 +5,9 @@ import { PageHeader } from "@/components/page-header";
 import { requireAdmin } from "@/lib/auth";
 import { currentMonth, dateBr, monthBr } from "@/lib/dates";
 import { brl, pct } from "@/lib/money";
-import { filterReportRows, firstSearchParam, normalizeSectorSelection, reportExportQuery, summarizeReportRows } from "@/lib/report-selection";
+import { filterReportRows, firstSearchParam, normalizeSectorSelection, reportExportQuery, reportOccurrences, summarizeReportRows } from "@/lib/report-selection";
 import { buildMonthlyReport } from "@/lib/report";
+import { getEvaluationRule } from "@/lib/rules";
 
 type ReportSearchParams = {
   month?: string | string[];
@@ -29,7 +30,10 @@ export default async function ReportsPage({
   const selectedSectors = normalizeSectorSelection(params.sector).filter((sector) => sectors.includes(sector));
   const query = firstSearchParam(params.q).trim();
   const rows = filterReportRows(report.rows, selectedSectors, query);
+  const occurrences = reportOccurrences(rows);
   const summary = summarizeReportRows(rows);
+  const occurrenceQuantity = occurrences.reduce((sum, occurrence) => sum + occurrence.quantity, 0);
+  const occurrencePoints = occurrences.reduce((sum, occurrence) => sum + (getEvaluationRule(occurrence.code)?.points || 0) * occurrence.quantity, 0);
   const hasFilters = Boolean(selectedSectors.length || query || includeInactive);
   const exportQuery = reportExportQuery(month, selectedSectors, query, includeInactive);
   const sectorSelectionLabel = selectedSectors.length === 0
@@ -87,6 +91,28 @@ export default async function ReportsPage({
       <section className="section panel flush-panel">
         <div className="panel-head padded"><div><p className="eyebrow">Memória de cálculo</p><h2>Consolidado de {monthBr(month)}</h2><p>Semanas: {report.weeks.map((week, index) => `S${index + 1} ${dateBr(week)}`).join(" · ")}</p></div><span className="badge">{rows.length} pessoas</span></div>
         <div className="table-wrap borderless"><table className="dense-table"><thead><tr><th>Colaborador</th><th>Grupo</th><th>Cobertura</th><th>Média / ocorrências</th><th>Aplicação das regras</th><th>Base</th><th>Monitoria</th><th>Tempo de casa</th><th>Ajustes</th><th>Total</th><th>Status</th></tr></thead><tbody>{rows.map((row) => <tr key={row.employeeId}><td><Link className="text-link" href={`/funcionarios/${row.employeeId}`}>{row.name}</Link><br /><small className="muted">{row.sector} · {row.role}</small></td><td><span className={`status-chip ${row.group === "Coord./Sup." ? "warning" : "neutral"}`}>{row.group}</span></td><td>{row.group === "Coord./Sup." ? "Base mensal" : `${row.evaluatedWeeks}/${row.eligibleWeeks} semanas`}</td><td>{row.average === null ? "—" : pct(row.average)}<br /><small className="muted">{row.errors} {row.errors === 1 ? "ocorrência" : "ocorrências"}</small></td><td><strong>{row.rulePoints.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pts</strong><br /><small className={row.ruleDiscount ? "danger-text" : "muted"}>{row.ruleDiscount ? `-${brl(row.ruleDiscount)}` : brl(0)} · {row.ruleImpact}</small></td><td>{brl(row.basePayment)}</td><td>{brl(row.monitorPayment)}</td><td>{brl(row.tenurePayment)}</td><td><strong className={row.adjustmentTotal > 0 ? "success-text" : row.adjustmentTotal < 0 ? "danger-text" : "muted"}>{row.adjustmentTotal > 0 ? "+" : row.adjustmentTotal < 0 ? "−" : ""}{brl(Math.abs(row.adjustmentTotal))}</strong></td><td><strong>{brl(row.total)}</strong></td><td><span className={`status-chip ${row.status === "OK" ? "success" : "danger"}`}>{row.status}</span></td></tr>)}</tbody></table>{!rows.length ? <div className="empty-state"><FileCheck2 size={28} /><strong>Nenhum registro encontrado</strong><span>Ajuste os filtros de conferência.</span></div> : null}</div>
+      </section>
+
+      <section className="section panel flush-panel">
+        <div className="panel-head padded"><div><p className="eyebrow">Ocorrências da competência</p><h2>{occurrenceQuantity} {occurrenceQuantity === 1 ? "ocorrência" : "ocorrências"} para a seleção atual</h2><p>{occurrences.length} {occurrences.length === 1 ? "lançamento" : "lançamentos"} · {occurrencePoints.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pontos de referência</p></div><Link className="button ghost" href={`/ocorrencias?month=${month}`}>Abrir central</Link></div>
+        <div className="table-wrap borderless">
+          <table className="dense-table">
+            <thead><tr><th>Colaborador</th><th>Semana</th><th>Regra</th><th>Ocorrência</th><th>Qtd.</th><th>Pontos</th><th>Contexto</th></tr></thead>
+            <tbody>{occurrences.map((occurrence) => {
+              const rule = getEvaluationRule(occurrence.code);
+              return <tr key={occurrence.id}>
+                <td><Link className="text-link" href={`/funcionarios/${occurrence.employeeId}`}>{occurrence.employeeName}</Link><br /><small className="muted">{occurrence.sector} · {occurrence.role}</small></td>
+                <td><Link className="text-link" href={`/avaliacoes?week=${occurrence.weekStart}&employee=${occurrence.employeeId}`}>{dateBr(occurrence.weekStart)}</Link></td>
+                <td><span className={`rule-code ${occurrence.severity === "CRITICO" ? "danger" : occurrence.severity === "ALTO" ? "warning" : ""}`}>{occurrence.code}</span><br /><small className="muted">{rule?.category || occurrence.severity}</small></td>
+                <td><strong>{rule?.occurrence || "Regra legada"}</strong><br /><small className="muted">{rule?.directive || "Sem diretriz cadastrada"}</small></td>
+                <td>{occurrence.quantity}</td>
+                <td><strong>{((rule?.points || 0) * occurrence.quantity).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</strong><br /><small className="muted">{(rule?.points || 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} por ocorrência</small></td>
+                <td>{occurrence.notes || <span className="muted">Sem observação</span>}</td>
+              </tr>;
+            })}</tbody>
+          </table>
+          {!occurrences.length ? <div className="empty-state"><Check size={28} /><strong>Nenhuma ocorrência na seleção</strong><span>Não há lançamentos na competência para as pessoas filtradas.</span></div> : null}
+        </div>
       </section>
     </>
   );
