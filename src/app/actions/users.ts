@@ -9,7 +9,7 @@ import type { UserRole } from "@/lib/types";
 
 function userRole(formData: FormData): UserRole {
   const value = text(formData, "role");
-  if (value !== "admin" && value !== "supervisor" && value !== "avaliador") {
+  if (value !== "admin" && value !== "rh" && value !== "supervisor" && value !== "avaliador") {
     throw new Error("Perfil de acesso inválido.");
   }
   return value;
@@ -31,8 +31,8 @@ export async function createUserAction(formData: FormData): Promise<void> {
     const username = normalizeUsername(text(formData, "username"));
     const role = userRole(formData);
     const passwordHash = hashPassword(raw(formData, "password"));
-    const evaluator = role === "admin" ? null : await evaluatorId(formData);
-    if (role !== "admin" && !evaluator) throw new Error("Vincule o usuário a uma liderança ativa.");
+    const evaluator = role === "admin" || role === "rh" ? null : await evaluatorId(formData);
+    if (role !== "admin" && role !== "rh" && !evaluator) throw new Error("Vincule o usuário a uma liderança ativa.");
     const now = new Date().toISOString();
     await sql`
       insert into login_users (username, password_hash, role, evaluator_employee_id, active, created_at, updated_at)
@@ -54,8 +54,8 @@ export async function updateUserAction(formData: FormData): Promise<void> {
     const role = userRole(formData);
     const active = checkbox(formData, "active");
     if (id === actor.id && !active) throw new Error("Você não pode desativar o próprio acesso.");
-    const evaluator = role === "admin" ? null : await evaluatorId(formData);
-    if (role !== "admin" && !evaluator) throw new Error("Vincule o usuário a uma liderança ativa.");
+    const evaluator = role === "admin" || role === "rh" ? null : await evaluatorId(formData);
+    if (role !== "admin" && role !== "rh" && !evaluator) throw new Error("Vincule o usuário a uma liderança ativa.");
     const password = raw(formData, "password");
     const now = new Date().toISOString();
     if (password) {

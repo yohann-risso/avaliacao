@@ -17,7 +17,8 @@ A versão Streamlit foi mantida nos arquivos Python como referência temporária
 
 - login compatível com os hashes PBKDF2 já gravados em `login_users`;
 - criação do primeiro administrador;
-- perfis `admin` e `avaliador`, com vínculo ao avaliador operacional;
+- perfis `admin`, `RH`, `supervisor` e `avaliador`, com escopo e permissões próprios;
+- acesso de RH à gestão global de colaboradores, consulta de avaliações/ocorrências e exportação de relatórios, sem permissão para alterar lançamentos de performance;
 - cadastro, edição, ativação e desativação de funcionários;
 - avaliação semanal em quatro semanas fixas, com faixas de pagamento e justificativas;
 - catálogo corporativo A01–A08, Q01–Q04, P01–P04 e C01–C04, com desconto automático por pontos;

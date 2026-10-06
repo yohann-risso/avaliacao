@@ -1,4 +1,5 @@
 import type { AppUser, Employee } from "@/lib/types";
+import { isTeamScopedRole } from "@/lib/permissions";
 
 function leadershipIdsVisibleTo(user: AppUser, employees: Employee[]): Set<number> {
   if (!user.evaluator_employee_id || !user.evaluator_name) return new Set();
@@ -22,7 +23,7 @@ function leadershipIdsVisibleTo(user: AppUser, employees: Employee[]): Set<numbe
 }
 
 export function employeesVisibleTo(user: AppUser, employees: Employee[]): Employee[] {
-  if (user.role === "admin") return employees;
+  if (!isTeamScopedRole(user.role)) return employees;
   const leadershipIds = leadershipIdsVisibleTo(user, employees);
   return employees.filter((employee) => (
     employee.id !== user.evaluator_employee_id
@@ -33,7 +34,7 @@ export function employeesVisibleTo(user: AppUser, employees: Employee[]): Employ
 
 export function evaluatorsVisibleTo(user: AppUser, employees: Employee[]): Employee[] {
   const evaluators = employees.filter((employee) => employee.active && employee.is_leadership);
-  if (user.role === "admin") return evaluators;
+  if (!isTeamScopedRole(user.role)) return evaluators;
   const leadershipIds = leadershipIdsVisibleTo(user, employees);
   return evaluators.filter((employee) => leadershipIds.has(employee.id));
 }

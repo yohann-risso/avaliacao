@@ -2,11 +2,12 @@ import Link from "next/link";
 import { Banknote, Check, ChevronDown, CircleAlert, Download, FileCheck2, FileText, Search, Star, TriangleAlert, Users } from "lucide-react";
 
 import { PageHeader } from "@/components/page-header";
-import { requireAdmin } from "@/lib/auth";
+import { requireReportViewer } from "@/lib/auth";
 import { currentMonth, dateBr, monthBr } from "@/lib/dates";
 import { brl, pct } from "@/lib/money";
 import { filterReportRows, firstSearchParam, normalizeSectorSelection, reportExportQuery, reportOccurrences, summarizeReportRows } from "@/lib/report-selection";
 import { buildMonthlyReport } from "@/lib/report";
+import { userRoleLabel } from "@/lib/permissions";
 import { getEvaluationRule } from "@/lib/rules";
 
 type ReportSearchParams = {
@@ -21,7 +22,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<ReportSearchParams>;
 }) {
-  const [user, params] = await Promise.all([requireAdmin(), searchParams]);
+  const [user, params] = await Promise.all([requireReportViewer(), searchParams]);
   const requestedMonth = firstSearchParam(params.month);
   const month = /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : currentMonth();
   const includeInactive = firstSearchParam(params.inactive) === "1";
@@ -56,7 +57,7 @@ export default async function ReportsPage({
 
   return (
     <>
-      <PageHeader step="Conferência mensal" title="Fechamento" subtitle="Valide cobertura, descontos e adicionais antes de exportar a folha de bonificação." icon={FileCheck2} user={`Admin · ${user.username}`} />
+      <PageHeader step="Conferência mensal" title="Fechamento" subtitle="Valide cobertura, descontos e adicionais antes de exportar a folha de bonificação." icon={FileCheck2} user={`${userRoleLabel(user.role)} · ${user.username}`} />
 
       <form method="get" className="filter-bar wrap">
         <div className="field compact"><label>Competência</label><input type="month" name="month" defaultValue={month} /></div>

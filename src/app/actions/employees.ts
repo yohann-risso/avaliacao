@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { checkbox, integer, publicError, redirectWith, text } from "@/lib/action-utils";
-import { requireAdmin, requirePeopleManager } from "@/lib/auth";
+import { requireOrganizationPeopleManager, requirePeopleManager } from "@/lib/auth";
 import { todayBrazil } from "@/lib/dates";
 import { sql } from "@/lib/db";
 import { requireEvaluatorManagementAccess, requireManagedEmployeeAccess } from "@/lib/employee-access";
@@ -200,7 +200,7 @@ export async function saveEmployeeEvaluatorLinkAction(formData: FormData): Promi
 }
 
 export async function deleteEmployeeEvaluatorLinkAction(formData: FormData): Promise<void> {
-  const actor = await requireAdmin();
+  const actor = await requireOrganizationPeopleManager();
   try {
     const employeeId = integer(formData, "employee_id");
     if (!employeeId) throw new Error("Vínculo inválido.");

@@ -29,6 +29,12 @@ describe("employeesVisibleTo", () => {
     expect(employeesVisibleTo(user({ role: "admin" }), employees)).toEqual(employees);
   });
 
+  it("mantém todos os funcionários e lideranças disponíveis para o RH", () => {
+    const activeEmployees = employees.map((employee) => ({ ...employee, active: 1 })) as Employee[];
+    expect(employeesVisibleTo(user({ role: "rh", evaluator_employee_id: null, evaluator_name: "" }), activeEmployees)).toEqual(activeEmployees);
+    expect(evaluatorsVisibleTo(user({ role: "rh", evaluator_employee_id: null, evaluator_name: "" }), activeEmployees).map((employee) => employee.id)).toEqual([10, 20, 30]);
+  });
+
   it("mostra ao avaliador sua equipe direta e as equipes das lideranças subordinadas", () => {
     expect(employeesVisibleTo(user({}), employees).map((employee) => employee.id)).toEqual([1, 2, 4, 20, 30]);
   });

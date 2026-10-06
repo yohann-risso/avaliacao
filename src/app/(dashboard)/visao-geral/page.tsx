@@ -8,7 +8,7 @@ import { currentMonth, dateBr, monthBr, normalizeMonday, todayBrazil, weeksForCo
 import { listActiveEmployees, listOccurrenceRowsForWeeks, listWeeklyEvaluations } from "@/lib/data";
 import { employeesVisibleTo } from "@/lib/employee-access";
 import { brl, pct } from "@/lib/money";
-import { userRoleLabel } from "@/lib/permissions";
+import { canEditEvaluationsRole, canViewReportsRole, userRoleLabel } from "@/lib/permissions";
 import { buildMonthlyReport } from "@/lib/report";
 import { getEvaluationRule } from "@/lib/rules";
 
@@ -20,11 +20,13 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const focusWeek = weeks.includes(monday) ? monday : weeks.at(-1) || monday;
   const allEmployees = await listActiveEmployees();
   const employees = employeesVisibleTo(user, allEmployees);
+  const canEditEvaluations = canEditEvaluationsRole(user.role);
+  const canViewReports = canViewReportsRole(user.role);
   const employeeIds = employees.filter((employee) => !employee.is_leadership).map((employee) => employee.id);
   const [evaluations, occurrences, report] = await Promise.all([
     listWeeklyEvaluations(weeks, employeeIds),
     listOccurrenceRowsForWeeks(weeks, employeeIds),
-    user.role === "admin" ? buildMonthlyReport(month) : Promise.resolve(null),
+    canViewReports ? buildMonthlyReport(month) : Promise.resolve(null),
   ]);
   const operators = employees.filter((employee) => !employee.is_leadership);
   const focusEvaluatedIds = new Set(evaluations.filter((item) => String(item.week_start).trim() === focusWeek).map((item) => item.employee_id));
@@ -50,8 +52,8 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
           <h2>{coverage >= 100 ? "Competência pronta para conferência" : `${Math.round(coverage)}% das avaliações concluídas`}</h2>
           <p>{pending.length ? `${pending.length} colaborador(es) ainda aguardam avaliação na semana de ${dateBr(focusWeek)}.` : `A semana de ${dateBr(focusWeek)} está coberta.`}</p>
           <div className="hero-actions">
-            <Link className="button primary" href={`/avaliacoes?week=${focusWeek}`}><ClipboardCheck size={17} /> Continuar avaliações</Link>
-            {user.role === "admin" ? <Link className="button ghost" href={`/relatorios?month=${month}`}>Revisar fechamento <ArrowRight size={16} /></Link> : null}
+            <Link className="button primary" href={`/avaliacoes?week=${focusWeek}`}><ClipboardCheck size={17} /> {canEditEvaluations ? "Continuar avaliações" : "Consultar avaliações"}</Link>
+            {canViewReports ? <Link className="button ghost" href={`/relatorios?month=${month}`}>Revisar fechamento <ArrowRight size={16} /></Link> : null}
           </div>
         </div>
         <div className="coverage-gauge" style={{ "--coverage": `${Math.min(100, Math.max(0, coverage)) * 3.6}deg` } as CSSProperties}>
@@ -78,7 +80,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         </section>
 
         <section className="panel">
-          <div className="panel-head"><div><p className="eyebrow">Fila atual</p><h2>Próximas avaliações</h2></div><Link className="text-link" href={`/avaliacoes?week=${focusWeek}`}>Ver fila</Link></div>
+          <div className="panel-head"><div><p className="eyebrow">Fila atual</p><h2>{canEditEvaluations ? "Próximas avaliações" : "Situação das avaliações"}</h2></div><Link className="text-link" href={`/avaliacoes?week=${focusWeek}`}>{canEditEvaluations ? "Ver fila" : "Consultar"}</Link></div>
           <div className="compact-list">
             {pending.slice(0, 5).map((employee) => <Link href={`/avaliacoes?week=${focusWeek}&employee=${employee.id}`} key={employee.id}><span className="user-avatar pale">{employee.name.slice(0, 2).toUpperCase()}</span><div><strong>{employee.name}</strong><small>{employee.sector} · {employee.role}</small></div><ArrowRight size={15} /></Link>)}
             {!pending.length ? <div className="empty-state compact"><CheckCircle2 size={26} /><strong>Semana coberta</strong><span>Nenhuma avaliação pendente.</span></div> : null}

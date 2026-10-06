@@ -12,7 +12,7 @@ import { currentMonth, dateBr, monthBr } from "@/lib/dates";
 import { getEmployee, listEmployees, listRecentBonusAdjustments, listRecentWeeklyErrors, listRecentWeeklyEvaluations } from "@/lib/data";
 import { evaluatorsVisibleTo, requireManagedEmployeeAccess } from "@/lib/employee-access";
 import { brl, pct, totalAfterFinancialAdjustments, weeklyPaymentBreakdown } from "@/lib/money";
-import { userRoleLabel } from "@/lib/permissions";
+import { canEditEvaluationsRole, canManageOrganizationRole, userRoleLabel } from "@/lib/permissions";
 import { buildMonthlyReport } from "@/lib/report";
 import { getEvaluationRule } from "@/lib/rules";
 
@@ -52,7 +52,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       <section className="profile-hero">
         <span className="profile-avatar">{employee.name.slice(0, 2).toUpperCase()}</span>
         <div><div className="actions"><span className={`status-chip ${employee.active ? "success" : "danger"}`}>{employee.active ? "Ativo" : "Inativo"}</span>{employee.is_monitor ? <span className="status-chip success">Monitor</span> : null}{employee.is_leadership ? <span className="status-chip warning">Coord./Sup.</span> : null}</div><h2>{employee.name}</h2><p>Admissão em {dateBr(employee.hire_date)} · {employee.sector}</p></div>
-        <div className="profile-quick-action"><Link className="button primary" href={`/avaliacoes?employee=${employee.id}`}><ClipboardCheck size={16} /> Abrir avaliação</Link></div>
+        <div className="profile-quick-action"><Link className="button primary" href={`/avaliacoes?employee=${employee.id}`}><ClipboardCheck size={16} /> {canEditEvaluationsRole(user.role) ? "Abrir avaliação" : "Consultar avaliações"}</Link></div>
       </section>
 
       <div className="metric-grid section">
@@ -88,7 +88,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
       <section className="section">
         <details className="panel profile-edit-panel">
           <summary><span className="metric-icon blue"><Pencil size={18} /></span><span><strong>Editar dados e elegibilidade</strong><small>Altere função, datas, monitoria ou liderança.</small></span></summary>
-          <form action={updateEmployeeAction} className="details-form"><EmployeeFields employee={employee} evaluators={evaluators} allowUnlinked={user.role === "admin"} /><div className="actions"><SubmitButton>Salvar alterações</SubmitButton></div></form>
+          <form action={updateEmployeeAction} className="details-form"><EmployeeFields employee={employee} evaluators={evaluators} allowUnlinked={canManageOrganizationRole(user.role)} /><div className="actions"><SubmitButton>Salvar alterações</SubmitButton></div></form>
           <form action={toggleEmployeeAction} className="danger-zone"><input type="hidden" name="id" value={employee.id} /><input type="hidden" name="active" value={employee.active ? 0 : 1} /><div><strong>{employee.active ? "Desativar colaborador" : "Reativar colaborador"}</strong><p>{employee.active ? "O histórico será preservado e o colaborador sairá das filas futuras." : "O colaborador voltará às filas de avaliação."}</p></div><SubmitButton className={employee.active ? "button danger" : "button secondary"}>{employee.active ? "Desativar" : "Reativar"}</SubmitButton></form>
         </details>
       </section>

@@ -12,7 +12,7 @@ import { requireUser } from "@/lib/auth";
 import { dateBr, normalizeMonday, todayBrazil } from "@/lib/dates";
 import { getWeeklyEvaluation, listActiveEmployees, listEvaluators, listWeeklyBonusAdjustments, listWeeklyErrors, listWeeklyEvaluations } from "@/lib/data";
 import { brl, financialAdjustmentTotal, weeklyPaymentBreakdown } from "@/lib/money";
-import { isTeamScopedRole, userRoleLabel } from "@/lib/permissions";
+import { canEditEvaluationsRole, isTeamScopedRole, userRoleLabel } from "@/lib/permissions";
 import { aggregateOccurrenceQuantities, getEvaluationRule, monthlyOccurrenceImpact, weeklyOccurrenceImpact } from "@/lib/rules";
 import { employeesVisibleTo } from "@/lib/employee-access";
 
@@ -26,6 +26,7 @@ export default async function EvaluationsPage({
   searchParams: Promise<{ week?: string; employee?: string; success?: string; error?: string }>;
 }) {
   const [user, params] = await Promise.all([requireUser(), searchParams]);
+  const canEditEvaluations = canEditEvaluationsRole(user.role);
   const [allEmployees, evaluators] = await Promise.all([
     listActiveEmployees(),
     user.role === "admin" ? listEvaluators() : Promise.resolve([]),
@@ -61,7 +62,7 @@ export default async function EvaluationsPage({
 
   return (
     <>
-      <PageHeader step="Operação semanal" title="Cockpit de avaliações" subtitle="Avalie, aplique regras e acompanhe o impacto sem sair da mesma tela." icon={ClipboardCheck} user={`${user.username} · ${userRoleLabel(user.role)}`} />
+      <PageHeader step="Operação semanal" title={canEditEvaluations ? "Cockpit de avaliações" : "Consulta de avaliações"} subtitle={canEditEvaluations ? "Avalie, aplique regras e acompanhe o impacto sem sair da mesma tela." : "Consulte notas, justificativas, ocorrências e valores consolidados, sem alterar os lançamentos."} icon={ClipboardCheck} user={`${user.username} · ${userRoleLabel(user.role)}`} />
       <Notice success={params.success} error={params.error} />
 
       <form method="get" className="filter-bar">
@@ -92,36 +93,36 @@ export default async function EvaluationsPage({
               </div>
             </aside>
 
-            <ScoreEditor key={`${selected.id}:${week}`} employeeId={selected.id} week={week} evaluation={evaluation} occurrences={occurrences} evaluatorNames={evaluatorNames} selectedEvaluator={selectedEvaluator} nextEmployeeId={nextEmployee?.id} adjustmentTotal={adjustmentTotal} />
+            {!canEditEvaluations && !evaluation ? <section className="panel evaluation-score-panel"><div className="empty-state"><ClipboardCheck size={28} /><strong>Nenhuma avaliação registrada</strong><span>Este colaborador ainda não possui avaliação na semana selecionada.</span></div></section> : <ScoreEditor key={`${selected.id}:${week}`} employeeId={selected.id} week={week} evaluation={evaluation} occurrences={occurrences} evaluatorNames={evaluatorNames} selectedEvaluator={selectedEvaluator} nextEmployeeId={nextEmployee?.id} adjustmentTotal={adjustmentTotal} readOnly={!canEditEvaluations} />}
           </div>
 
           <section className="section occurrence-workspace">
             <div className="section-head"><div><p className="eyebrow">Regras e valores avulsos</p><h2 className="section-title">Ocorrências, descontos e ajustes</h2><p className="muted">As ocorrências seguem a tabela corporativa; ajustes manuais alteram apenas o valor financeiro e exigem descrição.</p></div><Link className="button ghost" href="/regras">Consultar tabela completa</Link></div>
-            <div className="grid two occurrence-grid">
-              <OccurrenceForm key={`${selected.id}:${week}`} employeeId={selected.id} weekStart={week} />
+            <div className={canEditEvaluations ? "grid two occurrence-grid" : "occurrence-grid"}>
+              {canEditEvaluations ? <OccurrenceForm key={`${selected.id}:${week}`} employeeId={selected.id} weekStart={week} /> : null}
               <div className="panel occurrence-log">
                 <div className="panel-head"><div><h3>Registros da semana</h3><p>{occurrences.length ? `${weeklyImpact.recognizedQuantity} ocorrência(s) reconhecida(s)` : "Nenhum desconto aplicado"}</p></div><strong className={preview.discount ? "danger-text" : "success-text"}>-{brl(preview.discount)}</strong></div>
                 {weeklyPenalties.length ? <div className="penalty-totals" aria-label="Penalidades somadas por código">{weeklyPenalties.map(({ code, quantity, rule }) => <span key={code}><b>{code}</b>{quantity} × {(rule?.points || 0).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} = <strong>{((rule?.points || 0) * quantity).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pts</strong></span>)}</div> : null}
                 {occurrences.length ? <div className="occurrence-items">{occurrences.map((item) => {
                   const rule = getEvaluationRule(item.error_type);
-                  return <article key={item.id}><span className={`rule-code ${item.severity === "CRITICO" ? "danger" : item.severity === "ALTO" ? "warning" : ""}`}>{item.error_type}</span><div><strong>{rule?.occurrence || item.error_type}</strong><p>{item.qty} × {(rule?.points || 0).toLocaleString("pt-BR")} pts{item.notes ? ` · ${item.notes}` : ""}</p></div><form action={deleteWeeklyOccurrenceAction}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="employee_id" value={selected.id} /><input type="hidden" name="week_start" value={week} /><button className="icon-button danger" type="submit" aria-label="Remover ocorrência"><Trash2 size={15} /></button></form></article>;
+                  return <article key={item.id}><span className={`rule-code ${item.severity === "CRITICO" ? "danger" : item.severity === "ALTO" ? "warning" : ""}`}>{item.error_type}</span><div><strong>{rule?.occurrence || item.error_type}</strong><p>{item.qty} × {(rule?.points || 0).toLocaleString("pt-BR")} pts{item.notes ? ` · ${item.notes}` : ""}</p></div>{canEditEvaluations ? <form action={deleteWeeklyOccurrenceAction}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="employee_id" value={selected.id} /><input type="hidden" name="week_start" value={week} /><button className="icon-button danger" type="submit" aria-label="Remover ocorrência"><Trash2 size={15} /></button></form> : null}</article>;
                 })}</div> : <div className="empty-state compact"><Check size={25} /><strong>Semana sem ocorrências</strong><span>A bonificação depende apenas das notas.</span></div>}
                 {monthlyImpact.a01Quantity ? <div className="impact-callout warning"><TriangleAlert size={17} /><div><strong>A01 no mês: {monthlyImpact.a01Quantity}</strong><span>{monthlyImpact.blocksMonthlyBase ? "Reincidência: bônus-base mensal bloqueado." : "Assiduidade mensal afetada; nova A01 bloqueia o bônus-base."}</span></div></div> : null}
               </div>
             </div>
-            <div className="grid two occurrence-grid adjustment-grid">
-              <FinancialAdjustmentForm key={`adjustment:${selected.id}:${week}`} employeeId={selected.id} weekStart={week} />
+            <div className={canEditEvaluations ? "grid two occurrence-grid adjustment-grid" : "occurrence-grid adjustment-grid"}>
+              {canEditEvaluations ? <FinancialAdjustmentForm key={`adjustment:${selected.id}:${week}`} employeeId={selected.id} weekStart={week} /> : null}
               <div className="panel occurrence-log adjustment-log">
                 <div className="panel-head"><div><h3>Ajustes da semana</h3><p>{adjustments.length ? `${adjustments.length} lançamento(s) com descrição` : "Nenhum valor avulso lançado"}</p></div><strong className={adjustmentTotal > 0 ? "success-text" : adjustmentTotal < 0 ? "danger-text" : "muted"}>{adjustmentTotal > 0 ? "+" : adjustmentTotal < 0 ? "−" : ""}{brl(Math.abs(adjustmentTotal))}</strong></div>
                 {adjustments.length ? <div className="occurrence-items adjustment-items">{adjustments.map((item) => {
                   const amount = Number(item.amount);
-                  return <article key={item.id}><span className={`adjustment-sign ${amount > 0 ? "addition" : "deduction"}`}>{amount > 0 ? "+" : "−"}</span><div><strong>{item.description}</strong><p>{amount > 0 ? "Adicional" : "Desconto"} de {brl(Math.abs(amount))} · por {item.created_by_username || "sistema"}</p></div><form action={deleteBonusAdjustmentAction}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="employee_id" value={selected.id} /><input type="hidden" name="week_start" value={week} /><button className="icon-button danger" type="submit" aria-label="Remover ajuste"><Trash2 size={15} /></button></form></article>;
+                  return <article key={item.id}><span className={`adjustment-sign ${amount > 0 ? "addition" : "deduction"}`}>{amount > 0 ? "+" : "−"}</span><div><strong>{item.description}</strong><p>{amount > 0 ? "Adicional" : "Desconto"} de {brl(Math.abs(amount))} · por {item.created_by_username || "sistema"}</p></div>{canEditEvaluations ? <form action={deleteBonusAdjustmentAction}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="employee_id" value={selected.id} /><input type="hidden" name="week_start" value={week} /><button className="icon-button danger" type="submit" aria-label="Remover ajuste"><Trash2 size={15} /></button></form> : null}</article>;
                 })}</div> : <div className="empty-state compact"><Check size={25} /><strong>Sem ajustes manuais</strong><span>O total usa somente avaliação, regras e adicionais fixos.</span></div>}
               </div>
             </div>
           </section>
 
-          <section className="section">
+          {canEditEvaluations ? <section className="section">
             <details className="panel import-panel">
               <summary><span className="metric-icon blue"><FileSpreadsheet size={18} /></span><span><strong>Importação em lote</strong><small>Use o modelo XLSX para avaliar várias pessoas de uma vez.</small></span></summary>
               <form action={importWeeklyWorkbookAction} className="import-form">
@@ -131,7 +132,7 @@ export default async function EvaluationsPage({
                 <SubmitButton>Validar e importar</SubmitButton>
               </form>
             </details>
-          </section>
+          </section> : null}
         </>
       )}
     </>

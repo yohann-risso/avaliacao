@@ -20,6 +20,7 @@ export function ScoreEditor({
   selectedEvaluator,
   nextEmployeeId,
   adjustmentTotal,
+  readOnly = false,
 }: {
   employeeId: number;
   week: string;
@@ -29,6 +30,7 @@ export function ScoreEditor({
   selectedEvaluator: string;
   nextEmployeeId?: number;
   adjustmentTotal: number;
+  readOnly?: boolean;
 }) {
   const [scores, setScores] = useState<Record<WeeklyCriterionKey, number>>(() => Object.fromEntries(
     WEEKLY_CRITERIA.map((criterion) => [criterion.key, Number(evaluation?.[`${criterion.key}_pct`] ?? 100)]),
@@ -46,12 +48,12 @@ export function ScoreEditor({
   }
 
   return (
-    <form action={saveWeeklyEvaluationAction} className="evaluation-editor">
+    <form action={readOnly ? undefined : saveWeeklyEvaluationAction} className="evaluation-editor">
       <input type="hidden" name="employee_id" value={employeeId} />
       <input type="hidden" name="week_start" value={week} />
       <section className="panel evaluation-score-panel">
         <div className="panel-head evaluation-panel-head">
-          <div><p className="eyebrow">Avaliação da semana</p><h2>Resultado por quesito</h2><p>A nota define a faixa; ocorrências aplicam o desconto depois.</p></div>
+          <div><p className="eyebrow">{readOnly ? "Consulta da semana" : "Avaliação da semana"}</p><h2>Resultado por quesito</h2><p>{readOnly ? "Registro consolidado, disponível somente para consulta." : "A nota define a faixa; ocorrências aplicam o desconto depois."}</p></div>
           <div className="score-summary"><small>Média atual</small><strong>{pct(average)}</strong></div>
         </div>
 
@@ -63,24 +65,24 @@ export function ScoreEditor({
             return (
               <article className={`score-card ${discounted ? "discounted" : ""}`} key={criterion.key}>
                 <header><div><span>{criterion.label}</span><small>até {brl(criterion.monthlyCap)} / mês</small></div><strong>{score.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</strong></header>
-                <input aria-label={`${criterion.label} em porcentagem`} className="score-range" type="range" min="0" max="100" step="0.1" value={score} onChange={(event) => setScore(criterion.key, Number(event.target.value))} />
+                <input aria-label={`${criterion.label} em porcentagem`} className="score-range" type="range" min="0" max="100" step="0.1" value={score} onChange={(event) => setScore(criterion.key, Number(event.target.value))} disabled={readOnly} />
                 <div className="quick-scores" aria-label={`Atalhos de ${criterion.label}`}>
-                  {[100, 90, 80, 70, 50].map((value) => <button className={score === value ? "active" : ""} type="button" key={value} onClick={() => setScore(criterion.key, value)}>{value}</button>)}
-                  <input type="number" name={`${criterion.key}_pct`} min="0" max="100" step="0.1" value={score} onChange={(event) => setScore(criterion.key, Number(event.target.value))} required />
+                  {[100, 90, 80, 70, 50].map((value) => <button className={score === value ? "active" : ""} type="button" key={value} onClick={() => setScore(criterion.key, value)} disabled={readOnly}>{value}</button>)}
+                  <input type="number" name={`${criterion.key}_pct`} min="0" max="100" step="0.1" value={score} onChange={(event) => setScore(criterion.key, Number(event.target.value))} readOnly={readOnly} required />
                 </div>
                 <div className="score-payment"><span>{discounted ? "Após ocorrência" : "Prévia semanal"}</span><strong>{brl(payment.paid)}</strong>{discounted ? <small>-{brl(payment.gross - payment.paid)}</small> : <Check size={15} />}</div>
-                <label className="field justification-field"><span>Justificativa {score < 100 ? "*" : ""}</span><textarea name={`${criterion.key}_just`} defaultValue={String(evaluation?.[`${criterion.key}_just`] || "")} placeholder={score < 100 ? "Explique o resultado abaixo de 100%" : "Opcional"} required={score < 100} /></label>
+                <label className="field justification-field"><span>Justificativa {score < 100 && !readOnly ? "*" : ""}</span><textarea name={`${criterion.key}_just`} defaultValue={String(evaluation?.[`${criterion.key}_just`] || "")} placeholder={score < 100 ? "Explique o resultado abaixo de 100%" : "Opcional"} readOnly={readOnly} required={score < 100 && !readOnly} /></label>
               </article>
             );
           })}
         </div>
 
         <div className="form-grid evaluation-meta">
-          <div className="field span-3"><label>Itens executados</label><input type="number" name="items_count" min="0" defaultValue={Number(evaluation?.items_count || 0)} required /></div>
-          <div className="field span-3"><label>Avaliador *</label><select name="evaluator" defaultValue={selectedEvaluator} required>{evaluatorNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></div>
-          <div className="field span-6"><label>Observações gerais</label><textarea name="notes" defaultValue={String(evaluation?.notes || "")} placeholder="Contexto geral da semana" /></div>
+          <div className="field span-3"><label>Itens executados</label><input type="number" name="items_count" min="0" defaultValue={Number(evaluation?.items_count || 0)} readOnly={readOnly} required /></div>
+          <div className="field span-3"><label>Avaliador *</label>{readOnly ? <input value={selectedEvaluator || "Não informado"} readOnly /> : <select name="evaluator" defaultValue={selectedEvaluator} required>{evaluatorNames.map((name) => <option key={name} value={name}>{name}</option>)}</select>}</div>
+          <div className="field span-6"><label>Observações gerais</label><textarea name="notes" defaultValue={String(evaluation?.notes || "")} placeholder="Contexto geral da semana" readOnly={readOnly} /></div>
         </div>
-        {!evaluatorNames.length ? <div className="notice error">Nenhum avaliador disponível. Vincule o usuário a uma liderança ativa.</div> : null}
+        {!readOnly && !evaluatorNames.length ? <div className="notice error">Nenhum avaliador disponível. Vincule o usuário a uma liderança ativa.</div> : null}
       </section>
 
       <aside className="panel payment-rail">
@@ -94,10 +96,10 @@ export function ScoreEditor({
           {adjustmentTotal !== 0 ? <div className="manual-adjustment-row"><span>Ajustes manuais</span><strong className={adjustmentTotal > 0 ? "success-text" : "danger-text"}>{adjustmentTotal > 0 ? "+" : "−"}{brl(Math.abs(adjustmentTotal))}</strong></div> : null}
         </div>
         <div className={`impact-callout ${preview.discount ? "warning" : "success"}`}><Sparkles size={17} /><div><strong>{preview.discount ? `${brl(preview.discount)} descontados` : "Sem descontos"}</strong><span>{preview.occurrencePoints.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pontos de ocorrência</span></div></div>
-        <div className="sticky-actions">
+        {!readOnly ? <div className="sticky-actions">
           <SubmitButton className="button primary wide"><Save size={16} /> Salvar avaliação</SubmitButton>
           {nextEmployeeId ? <SubmitButton className="button secondary wide" name="next_employee_id" value={nextEmployeeId}><SkipForward size={16} /> Salvar e ir ao próximo</SubmitButton> : null}
-        </div>
+        </div> : <div className="notice info">Acesso do RH em modo de consulta.</div>}
       </aside>
     </form>
   );

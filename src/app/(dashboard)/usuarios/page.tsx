@@ -22,7 +22,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
           <div className="form-grid">
             <div className="field span-3"><label>Usuário *</label><input name="username" minLength={3} required /></div>
             <div className="field span-3"><label>Senha inicial *</label><input name="password" type="password" minLength={8} required /></div>
-            <div className="field span-2"><label>Perfil *</label><select name="role" defaultValue="avaliador"><option value="avaliador">Avaliador</option><option value="supervisor">Supervisor</option><option value="admin">Administrador</option></select></div>
+            <div className="field span-2"><label>Perfil *</label><select name="role" defaultValue="avaliador"><option value="avaliador">Avaliador</option><option value="supervisor">Supervisor</option><option value="rh">Recursos Humanos</option><option value="admin">Administrador</option></select></div>
             <div className="field span-4"><label>Liderança vinculada</label><EvaluatorSelect evaluators={evaluators} /></div>
           </div>
           <div className="actions" style={{ marginTop: 18 }}><SubmitButton>Cadastrar usuário</SubmitButton></div>
@@ -47,7 +47,7 @@ export default async function UsersPage({ searchParams }: { searchParams: Promis
                         <input type="hidden" name="id" value={item.id} />
                         <div className="form-grid">
                           <div className="field span-3"><label>Usuário</label><input name="username" defaultValue={item.username} required /></div>
-                          <div className="field span-2"><label>Perfil</label><select name="role" defaultValue={item.role}><option value="avaliador">Avaliador</option><option value="supervisor">Supervisor</option><option value="admin">Administrador</option></select></div>
+                          <div className="field span-2"><label>Perfil</label><select name="role" defaultValue={item.role}><option value="avaliador">Avaliador</option><option value="supervisor">Supervisor</option><option value="rh">Recursos Humanos</option><option value="admin">Administrador</option></select></div>
                           <div className="field span-3"><label>Liderança</label><EvaluatorSelect evaluators={evaluators} defaultValue={item.evaluator_employee_id} /></div>
                           <div className="field span-2"><label>Nova senha</label><input name="password" type="password" placeholder="Manter atual" /></div>
                           <div className="field span-2"><label className="check"><input type="checkbox" name="active" defaultChecked={Boolean(item.active)} /> Acesso ativo</label></div>

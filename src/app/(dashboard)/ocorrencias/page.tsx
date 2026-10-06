@@ -10,7 +10,7 @@ import { currentMonth, dateBr, monthBr, weeksForCompetencia } from "@/lib/dates"
 import { listActiveEmployees, listOccurrenceRowsForWeeks } from "@/lib/data";
 import { employeesVisibleTo } from "@/lib/employee-access";
 import { brl } from "@/lib/money";
-import { userRoleLabel } from "@/lib/permissions";
+import { canEditEvaluationsRole, userRoleLabel } from "@/lib/permissions";
 import { getEvaluationRule, type RuleCategory } from "@/lib/rules";
 
 export default async function OccurrencesPage({
@@ -19,6 +19,7 @@ export default async function OccurrencesPage({
   searchParams: Promise<{ month?: string; week?: string; category?: string; severity?: string; q?: string; success?: string; error?: string }>;
 }) {
   const [user, params] = await Promise.all([requireUser(), searchParams]);
+  const canEditEvaluations = canEditEvaluationsRole(user.role);
   const month = /^\d{4}-\d{2}$/.test(params.month || "") ? String(params.month) : currentMonth();
   const weeks = weeksForCompetencia(month);
   const allEmployees = await listActiveEmployees();
@@ -46,7 +47,7 @@ export default async function OccurrencesPage({
 
   return (
     <>
-      <PageHeader step="Controle de impacto" title="Central de ocorrências" subtitle="Registre, investigue e acompanhe todas as regras que afetam a bonificação." icon={TriangleAlert} user={`${user.username} · ${userRoleLabel(user.role)}`} />
+      <PageHeader step="Controle de impacto" title="Central de ocorrências" subtitle={canEditEvaluations ? "Registre, investigue e acompanhe todas as regras que afetam a bonificação." : "Consulte os registros e impactos que afetam a bonificação, sem alterar os lançamentos."} icon={TriangleAlert} user={`${user.username} · ${userRoleLabel(user.role)}`} />
       <Notice success={params.success} error={params.error} />
 
       <form method="get" className="filter-bar wrap">
@@ -65,7 +66,7 @@ export default async function OccurrencesPage({
         <article className="metric-card"><span className={`metric-icon ${recurrences ? "red" : "green"}`}><Repeat2 size={19} /></span><div><small>Reincidências A01</small><strong>{recurrences}</strong><p>{recurrences ? "Bônus-base mensal bloqueado" : "Nenhum bloqueio mensal"}</p></div></article>
       </div>
 
-      {operators.length ? <section className="section"><QuickOccurrenceForm employees={operators.map(({ id, name, sector }) => ({ id, name, sector }))} weeks={weeks} returnTo={returnTo} /></section> : null}
+      {canEditEvaluations && operators.length ? <section className="section"><QuickOccurrenceForm employees={operators.map(({ id, name, sector }) => ({ id, name, sector }))} weeks={weeks} returnTo={returnTo} /></section> : null}
 
       <section className="section panel flush-panel">
         <div className="panel-head padded"><div><p className="eyebrow">Histórico da competência</p><h2>{rows.length} lançamento(s) encontrado(s)</h2><p>Os pontos abaixo representam o teto de desconto definido no documento corporativo.</p></div><Link className="button ghost" href="/regras">Ver regras</Link></div>
@@ -82,7 +83,7 @@ export default async function OccurrencesPage({
                 <td><strong>{brl((rule?.points || 0) * item.qty)}</strong><br /><small className="muted">{rule?.points.toLocaleString("pt-BR")} por ocorrência</small></td>
                 <td><span className={`status-chip ${recurrence || item.severity === "CRITICO" ? "danger" : item.severity === "ALTO" ? "warning" : "neutral"}`}>{recurrence ? "Reincidência" : item.severity}</span><br /><small className="muted">{rule?.directive || "Regra legada"}</small></td>
                 <td>{item.notes || <span className="muted">Sem observação</span>}</td>
-                <td><div className="row-actions"><Link className="icon-button" href={`/avaliacoes?week=${item.week_start}&employee=${item.employee_id}`} aria-label="Abrir avaliação"><ClipboardCheck size={15} /></Link><form action={deleteWeeklyOccurrenceAction}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="employee_id" value={item.employee_id} /><input type="hidden" name="week_start" value={item.week_start} /><input type="hidden" name="return_to" value={returnTo} /><button className="icon-button danger" type="submit" aria-label="Remover ocorrência"><Trash2 size={15} /></button></form></div></td>
+                <td><div className="row-actions"><Link className="icon-button" href={`/avaliacoes?week=${item.week_start}&employee=${item.employee_id}`} aria-label="Consultar avaliação"><ClipboardCheck size={15} /></Link>{canEditEvaluations ? <form action={deleteWeeklyOccurrenceAction}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="employee_id" value={item.employee_id} /><input type="hidden" name="week_start" value={item.week_start} /><input type="hidden" name="return_to" value={returnTo} /><button className="icon-button danger" type="submit" aria-label="Remover ocorrência"><Trash2 size={15} /></button></form> : null}</div></td>
               </tr>;
             })}</tbody>
           </table>

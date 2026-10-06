@@ -11,7 +11,7 @@ import { requirePeopleManager } from "@/lib/auth";
 import { dateBr } from "@/lib/dates";
 import { listEmployees } from "@/lib/data";
 import { employeesVisibleTo, evaluatorsVisibleTo } from "@/lib/employee-access";
-import { userRoleLabel } from "@/lib/permissions";
+import { canManageOrganizationRole, userRoleLabel } from "@/lib/permissions";
 
 export default async function EmployeesPage({
   searchParams,
@@ -45,7 +45,7 @@ export default async function EmployeesPage({
       <section className="section">
         <details className="panel add-person-panel">
           <summary><span className="metric-icon blue"><Plus size={18} /></span><span><strong>Novo colaborador</strong><small>Abra para cadastrar e definir a elegibilidade.</small></span></summary>
-          <form action={createEmployeeAction} className="details-form"><EmployeeFields evaluators={evaluators} allowUnlinked={user.role === "admin"} /><div className="actions"><SubmitButton>Cadastrar colaborador</SubmitButton></div></form>
+          <form action={createEmployeeAction} className="details-form"><EmployeeFields evaluators={evaluators} allowUnlinked={canManageOrganizationRole(user.role)} /><div className="actions"><SubmitButton>Cadastrar colaborador</SubmitButton></div></form>
         </details>
       </section>
 

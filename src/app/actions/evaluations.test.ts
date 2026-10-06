@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => {
     revalidatePath: vi.fn(),
     redirectWith: vi.fn(),
     requireEmployeesAccess: vi.fn(async () => undefined),
-    requireUser: vi.fn(async () => ({
+    requireEvaluationEditor: vi.fn(async () => ({
       id: 7,
       username: "supervisor",
       role: "supervisor",
@@ -23,7 +23,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("@/lib/auth", () => ({ requireUser: mocks.requireUser }));
+vi.mock("@/lib/auth", () => ({ requireEvaluationEditor: mocks.requireEvaluationEditor }));
 vi.mock("@/lib/db", () => ({ sql: mocks.sql }));
 vi.mock("@/lib/employee-access", () => ({
   requireEmployeeAccess: vi.fn(),

@@ -5,7 +5,7 @@ import ExcelJS from "exceljs";
 import { revalidatePath } from "next/cache";
 
 import { integer, percentage, publicError, redirectWith, text } from "@/lib/action-utils";
-import { requireUser } from "@/lib/auth";
+import { requireEvaluationEditor } from "@/lib/auth";
 import { WEEKLY_CRITERIA } from "@/lib/constants";
 import { normalizeMonday } from "@/lib/dates";
 import { sql } from "@/lib/db";
@@ -31,7 +31,7 @@ async function authorizedEvaluatorName(user: AppUser, requested: string): Promis
 }
 
 export async function saveWeeklyEvaluationAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireEvaluationEditor();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = `/avaliacoes?week=${encodeURIComponent(week)}&employee=${employeeId}`;
@@ -121,7 +121,7 @@ function workbookDate(value: ExcelJS.CellValue): string {
 }
 
 export async function importWeeklyWorkbookAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireEvaluationEditor();
   const fallbackWeek = text(formData, "week_start");
   const path = `/avaliacoes?week=${encodeURIComponent(fallbackWeek)}`;
   const importId = randomUUID();
@@ -234,7 +234,7 @@ export async function importWeeklyWorkbookAction(formData: FormData): Promise<vo
 }
 
 export async function addWeeklyOccurrenceAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireEvaluationEditor();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = occurrenceReturnPath(formData, week, employeeId);
@@ -263,7 +263,7 @@ export async function addWeeklyOccurrenceAction(formData: FormData): Promise<voi
 }
 
 export async function deleteWeeklyOccurrenceAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireEvaluationEditor();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = occurrenceReturnPath(formData, week, employeeId);
@@ -283,7 +283,7 @@ export async function deleteWeeklyOccurrenceAction(formData: FormData): Promise<
 }
 
 export async function addBonusAdjustmentAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireEvaluationEditor();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = occurrenceReturnPath(formData, week, employeeId);
@@ -318,7 +318,7 @@ export async function addBonusAdjustmentAction(formData: FormData): Promise<void
 }
 
 export async function deleteBonusAdjustmentAction(formData: FormData): Promise<void> {
-  const user = await requireUser();
+  const user = await requireEvaluationEditor();
   const week = text(formData, "week_start");
   const employeeId = integer(formData, "employee_id");
   const path = occurrenceReturnPath(formData, week, employeeId);

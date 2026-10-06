@@ -7,7 +7,12 @@ import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { jwtVerify, SignJWT } from "jose";
 
 import { sql } from "@/lib/db";
-import { canManagePeopleRole } from "@/lib/permissions";
+import {
+  canEditEvaluationsRole,
+  canManageOrganizationRole,
+  canManagePeopleRole,
+  canViewReportsRole,
+} from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
 
 const COOKIE_NAME = "avaliacao_session";
@@ -105,7 +110,7 @@ export const currentUser = cache(async (): Promise<AppUser | null> => {
       and coalesce(e.is_leadership, 0) = 1
     where u.id = ${userId}
       and u.active = 1
-      and u.role in ('admin', 'supervisor', 'avaliador')
+      and u.role in ('admin', 'rh', 'supervisor', 'avaliador')
     limit 1
   `;
   return rows[0] ?? null;
@@ -126,5 +131,23 @@ export async function requireAdmin(): Promise<AppUser> {
 export async function requirePeopleManager(): Promise<AppUser> {
   const user = await requireUser();
   if (!canManagePeopleRole(user.role)) redirect("/visao-geral");
+  return user;
+}
+
+export async function requireOrganizationPeopleManager(): Promise<AppUser> {
+  const user = await requireUser();
+  if (!canManageOrganizationRole(user.role)) redirect("/visao-geral");
+  return user;
+}
+
+export async function requireReportViewer(): Promise<AppUser> {
+  const user = await requireUser();
+  if (!canViewReportsRole(user.role)) redirect("/visao-geral");
+  return user;
+}
+
+export async function requireEvaluationEditor(): Promise<AppUser> {
+  const user = await requireUser();
+  if (!canEditEvaluationsRole(user.role)) redirect("/avaliacoes?error=Seu+perfil+permite+somente+consultar+avaliações.");
   return user;
 }

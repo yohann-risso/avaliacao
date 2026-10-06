@@ -19,7 +19,7 @@ import {
 
 import { logoutAction } from "@/app/actions/auth";
 import type { DashboardStats } from "@/lib/data";
-import { canManagePeopleRole, userRoleLabel } from "@/lib/permissions";
+import { canManagePeopleRole, canViewReportsRole, userRoleLabel } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
 
 type NavItem = {
@@ -29,6 +29,7 @@ type NavItem = {
   icon: ComponentType<{ size?: number; strokeWidth?: number }>;
   adminOnly?: boolean;
   peopleManagerOnly?: boolean;
+  reportViewerOnly?: boolean;
 };
 
 const mainNavigation: NavItem[] = [
@@ -36,12 +37,12 @@ const mainNavigation: NavItem[] = [
   { href: "/avaliacoes", label: "Avaliações", detail: "Cockpit semanal", icon: ClipboardCheck },
   { href: "/ocorrencias", label: "Ocorrências", detail: "Regras e impactos", icon: TriangleAlert },
   { href: "/funcionarios", label: "Pessoas", detail: "Cadastro e histórico", icon: Users, peopleManagerOnly: true },
-  { href: "/relatorios", label: "Fechamento", detail: "Conferência mensal", icon: FileCheck2, adminOnly: true },
+  { href: "/relatorios", label: "Fechamento", detail: "Relatórios e conferência", icon: FileCheck2, reportViewerOnly: true },
 ];
 
 const adminNavigation: NavItem[] = [
   { href: "/usuarios", label: "Usuários", detail: "Acessos e perfis", icon: ShieldCheck, adminOnly: true },
-  { href: "/regras", label: "Regras", detail: "Tabela corporativa", icon: BookOpenCheck, adminOnly: true },
+  { href: "/regras", label: "Regras", detail: "Tabela corporativa", icon: BookOpenCheck, reportViewerOnly: true },
 ];
 
 export function DashboardShell({
@@ -61,8 +62,12 @@ export function DashboardShell({
   const visibleMain = mainNavigation.filter((item) => (
     (!item.adminOnly || user.role === "admin")
     && (!item.peopleManagerOnly || canManagePeopleRole(user.role))
+    && (!item.reportViewerOnly || canViewReportsRole(user.role))
   ));
-  const visibleAdmin = adminNavigation.filter((item) => !item.adminOnly || user.role === "admin");
+  const visibleAdmin = adminNavigation.filter((item) => (
+    (!item.adminOnly || user.role === "admin")
+    && (!item.reportViewerOnly || canViewReportsRole(user.role))
+  ));
 
   function navLink(item: NavItem) {
     const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
