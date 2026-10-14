@@ -7,6 +7,7 @@ import { requireOrganizationPeopleManager, requirePeopleManager } from "@/lib/au
 import { todayBrazil } from "@/lib/dates";
 import { sql } from "@/lib/db";
 import { requireEvaluatorManagementAccess, requireManagedEmployeeAccess } from "@/lib/employee-access";
+import { normalizeSectorName } from "@/lib/sectors";
 import type { AppUser } from "@/lib/types";
 
 type EmployeePayload = {
@@ -25,7 +26,7 @@ type EmployeePayload = {
 function employeePayload(formData: FormData): EmployeePayload {
   const payload = {
     name: text(formData, "name"),
-    sector: text(formData, "sector"),
+    sector: normalizeSectorName(text(formData, "sector")),
     role: text(formData, "role"),
     evaluatorEmployeeId: integer(formData, "evaluator_employee_id") || null,
     hireDate: text(formData, "hire_date"),
@@ -43,6 +44,17 @@ function employeePayload(formData: FormData): EmployeePayload {
   if (payload.isMonitor && !payload.monitorStartDate) throw new Error("Informe a data de início como monitor.");
   if (payload.isLeadership && !payload.leadershipStartDate) throw new Error("Informe a data de início em coordenação/supervisão.");
   return payload;
+}
+
+async function canonicalSectorName(sector: string): Promise<string> {
+  const existingSectors = await sql<{ sector: string }[]>`
+    select trim(sector) as sector
+    from employees
+    where lower(trim(sector)) = lower(${sector})
+    group by trim(sector)
+    order by count(*) desc, trim(sector)
+  `;
+  return normalizeSectorName(sector, existingSectors.map((item) => item.sector));
 }
 
 async function validateEvaluatorLink(user: AppUser, employeeId: number | undefined, evaluatorEmployeeId: number): Promise<number> {
@@ -87,6 +99,7 @@ export async function createEmployeeAction(formData: FormData): Promise<void> {
   const actor = await requirePeopleManager();
   try {
     const item = employeePayload(formData);
+    item.sector = await canonicalSectorName(item.sector);
     if (actor.role === "supervisor" && !item.evaluatorEmployeeId) {
       throw new Error("Selecione uma liderança responsável da sua equipe.");
     }
@@ -121,6 +134,7 @@ export async function updateEmployeeAction(formData: FormData): Promise<void> {
     if (!id) throw new Error("Funcionário inválido.");
     await requireManagedEmployeeAccess(actor, id);
     const item = employeePayload(formData);
+    item.sector = await canonicalSectorName(item.sector);
     if (actor.role === "supervisor" && !item.evaluatorEmployeeId) {
       throw new Error("Selecione uma liderança responsável da sua equipe.");
     }
