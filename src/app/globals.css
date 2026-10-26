@@ -178,6 +178,19 @@ small { line-height: 1.35; }
 .filter-bar { display: flex; align-items: flex-end; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.76); box-shadow: var(--shadow-sm); }
 .filter-bar.wrap { flex-wrap: wrap; }
 .filter-bar.embedded { margin: 0 20px 14px; box-shadow: none; background: var(--surface-soft); }
+.evaluation-weeks { order: 1; flex: 0 0 100%; min-width: 0; margin: 4px 0 0; padding: 0; border: 0; }
+.evaluation-weeks legend { margin-bottom: 7px; padding: 0; color: var(--ink-soft); font-size: .7rem; font-weight: 750; }
+.evaluation-week-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 8px; }
+.evaluation-week-option { position: relative; display: grid; gap: 4px; min-height: 64px; padding: 10px 12px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink-soft); background: var(--surface); cursor: pointer; }
+.evaluation-week-option:hover { background: var(--surface-soft); }
+.evaluation-week-option:has(:checked) { border-color: var(--blue); color: var(--blue-strong); background: var(--blue-soft); }
+.evaluation-week-option:has(:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
+.evaluation-week-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.evaluation-week-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: .78rem; font-weight: 780; }
+.evaluation-week-title svg { visibility: hidden; flex-shrink: 0; }
+.evaluation-week-option:has(:checked) svg { visibility: visible; }
+.evaluation-week-range { color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
+.evaluation-week-option:has(:checked) .evaluation-week-range { color: var(--blue-strong); }
 .sector-filter { position: relative; min-width: 220px !important; }
 .multi-select-control { position: relative; }
 .multi-select-control summary { min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: white; font-size: .78rem; cursor: pointer; list-style: none; }

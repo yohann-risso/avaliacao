@@ -3,6 +3,7 @@ import { Check, ClipboardCheck, Download, FileSpreadsheet, Trash2, TriangleAlert
 
 import { deleteBonusAdjustmentAction, deleteWeeklyOccurrenceAction, importWeeklyWorkbookAction } from "@/app/actions/evaluations";
 import { FinancialAdjustmentForm } from "@/components/financial-adjustment-form";
+import { EvaluationWeekPicker } from "@/components/evaluation-week-picker";
 import { Notice } from "@/components/notice";
 import { OccurrenceForm } from "@/components/occurrence-form";
 import { PageHeader } from "@/components/page-header";
@@ -68,9 +69,9 @@ export default async function EvaluationsPage({
       <PageHeader step="Operação semanal" title={canEditEvaluations ? "Cockpit de avaliações" : "Consulta de avaliações"} subtitle={canEditEvaluations ? "Avalie, aplique regras e acompanhe o impacto sem sair da mesma tela." : "Consulte notas, justificativas, ocorrências e valores consolidados, sem alterar os lançamentos."} icon={ClipboardCheck} user={`${user.username} · ${userRoleLabel(user.role)}`} />
       <Notice success={params.success} error={params.error} />
 
-      <form method="get" className="filter-bar">
-        <div className="field compact"><label>Semana operacional</label><input type="date" name="week" defaultValue={week} /></div>
-        <div className="field compact grow"><label>Colaborador</label><select name="employee" defaultValue={employeeId}>{employees.map((employee) => <option value={employee.id} key={employee.id}>{employee.name} · {employee.sector}</option>)}</select></div>
+      <form method="get" className="filter-bar wrap">
+        <EvaluationWeekPicker key={week} week={week} />
+        <div className="field compact grow"><label htmlFor="evaluation-employee">Colaborador</label><select id="evaluation-employee" name="employee" defaultValue={employeeId}>{employees.map((employee) => <option value={employee.id} key={employee.id}>{employee.name} · {employee.sector}</option>)}</select></div>
         <button className="button secondary" type="submit">Carregar</button>
         <Link className="button ghost" href={`/api/export/avaliacoes?week=${week}`}><Download size={16} /> Planilha</Link>
         <span className="filter-context">{completed}/{employees.length} concluídas</span>
