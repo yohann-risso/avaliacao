@@ -2,6 +2,7 @@
 
 import { Check } from "lucide-react";
 import { useState } from "react";
+import { flushSync } from "react-dom";
 
 import { competenciaFromWeek, dateBr, isoDate, parseIsoDate, weeksForCompetencia } from "@/lib/dates";
 
@@ -40,7 +41,20 @@ export function EvaluationWeekPicker({ week }: { week: string }) {
             const selected = selectedWeek === start;
             return (
               <label className="evaluation-week-option" key={start}>
-                <input type="radio" name="week" value={start} checked={selected} onChange={() => setSelectedWeek(start)} />
+                <input
+                  type="radio"
+                  name="week"
+                  value={start}
+                  checked={selected}
+                  onChange={(event) => {
+                    flushSync(() => setSelectedWeek(start));
+                    event.currentTarget.form?.requestSubmit();
+                  }}
+                  onClick={(event) => {
+                    // Also load a preselected week after changing the competence.
+                    if (selected) event.currentTarget.form?.requestSubmit();
+                  }}
+                />
                 <span className="evaluation-week-title">Semana {index + 1}<Check size={14} aria-hidden="true" /></span>
                 <span className="evaluation-week-range">{dateBr(start).slice(0, 5)} a {dateBr(friday).slice(0, 5)}</span>
               </label>
