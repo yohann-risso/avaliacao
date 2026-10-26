@@ -273,6 +273,9 @@ small { line-height: 1.35; }
 
 .employee-focus-bar { display: flex; align-items: center; gap: 13px; margin-top: 16px; padding: 15px 18px; border: 1px solid var(--line); border-radius: 13px; background: white; box-shadow: var(--shadow-sm); }
 .employee-focus-bar h2 { margin: 0; font-size: 1.15rem; letter-spacing: -.025em; }
+.employee-profile-link { display: inline-flex; align-items: center; gap: 6px; }
+.employee-profile-link svg { flex-shrink: 0; color: var(--muted); }
+.employee-profile-link:hover, .employee-profile-link:focus-visible { color: var(--blue-strong); text-decoration: underline; text-underline-offset: 3px; }
 .employee-focus-bar p { margin-bottom: 2px; }
 .employee-focus-bar > div > span { color: var(--muted); font-size: .72rem; }
 .focus-meta { display: flex; gap: 25px; margin-left: auto; }

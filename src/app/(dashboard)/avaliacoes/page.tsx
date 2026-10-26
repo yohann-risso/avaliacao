@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, ClipboardCheck, FileSpreadsheet, Trash2, TriangleAlert } from "lucide-react";
+import { ArrowUpRight, Check, ClipboardCheck, FileSpreadsheet, Trash2, TriangleAlert } from "lucide-react";
 
 import { deleteBonusAdjustmentAction, deleteWeeklyOccurrenceAction, importWeeklyWorkbookAction } from "@/app/actions/evaluations";
 import { FinancialAdjustmentForm } from "@/components/financial-adjustment-form";
@@ -81,7 +81,7 @@ export default async function EvaluationsPage({
         <>
           <section className="employee-focus-bar">
             <span className="user-avatar large">{selected.name.slice(0, 2).toUpperCase()}</span>
-            <div><p className="eyebrow">Em avaliação</p><h2>{selected.name}</h2><span>{selected.sector} · {selected.role}</span></div>
+            <div><p className="eyebrow">Em avaliação</p><h2><Link className="employee-profile-link" href={`/funcionarios/${selected.id}`} aria-label={`Abrir perfil de ${selected.name}`}>{selected.name}<ArrowUpRight size={16} aria-hidden="true" /></Link></h2><span>{selected.sector} · {selected.role}</span></div>
             <div className="focus-meta"><span><small>Semana</small><strong>{dateBr(week)}</strong></span><span><small>Status</small><strong className={evaluation ? "success-text" : "warning-text"}>{evaluation ? "Avaliado" : "Pendente"}</strong></span><span><small>Ocorrências</small><strong>{occurrences.reduce((sum, item) => sum + Number(item.qty), 0)}</strong></span></div>
           </section>
 
