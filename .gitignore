@@ -25,6 +25,7 @@ next-env.d.ts
 *.docx
 *.err.log
 *.out.log
+tmp/pdfs/
 *.db-wal
 *.db-shm
 *.backup_*.db
