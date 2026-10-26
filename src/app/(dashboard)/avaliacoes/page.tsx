@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, ClipboardCheck, Download, FileSpreadsheet, Trash2, TriangleAlert } from "lucide-react";
+import { Check, ClipboardCheck, FileSpreadsheet, Trash2, TriangleAlert } from "lucide-react";
 
 import { deleteBonusAdjustmentAction, deleteWeeklyOccurrenceAction, importWeeklyWorkbookAction } from "@/app/actions/evaluations";
 import { FinancialAdjustmentForm } from "@/components/financial-adjustment-form";
@@ -10,12 +10,13 @@ import { PageHeader } from "@/components/page-header";
 import { ScoreEditor } from "@/components/score-editor";
 import { SubmitButton } from "@/components/submit-button";
 import { requireUser } from "@/lib/auth";
-import { dateBr, normalizeMonday, todayBrazil } from "@/lib/dates";
+import { competenciaFromWeek, dateBr, normalizeMonday, todayBrazil, weeksForCompetencia } from "@/lib/dates";
 import { getWeeklyEvaluation, listActiveEmployees, listEvaluators, listWeeklyBonusAdjustments, listWeeklyErrors, listWeeklyEvaluations } from "@/lib/data";
 import { brl, financialAdjustmentTotal, weeklyPaymentBreakdown } from "@/lib/money";
 import { canEditEvaluationsRole, isTeamScopedRole, userRoleLabel } from "@/lib/permissions";
 import { aggregateOccurrenceQuantities, getEvaluationRule, monthlyOccurrenceImpact, weeklyOccurrenceImpact } from "@/lib/rules";
 import { employeesEligibleForWeek, employeesVisibleTo } from "@/lib/employee-scope";
+import { weeklyProgress } from "@/lib/weekly-progress";
 
 function safeWeek(value?: string): string {
   try { return normalizeMonday(value || todayBrazil()); } catch { return normalizeMonday(todayBrazil()); }
@@ -33,17 +34,22 @@ export default async function EvaluationsPage({
     user.role === "admin" ? listEvaluators() : Promise.resolve([]),
   ]);
   const week = safeWeek(params.week);
-  const employees = employeesEligibleForWeek(
-    employeesVisibleTo(user, allEmployees).filter((employee) => !employee.is_leadership),
-    week,
-  );
-  const employeeIds = employees.map((employee) => employee.id);
+  const visibleEmployees = employeesVisibleTo(user, allEmployees).filter((employee) => !employee.is_leadership);
+  const employees = employeesEligibleForWeek(visibleEmployees, week);
+  const weeks = weeksForCompetencia(competenciaFromWeek(week));
+  if (!weeks.includes(week)) weeks.unshift(week);
   const requestedEmployee = Number(params.employee);
   const selected = employees.find((employee) => employee.id === requestedEmployee) || employees[0];
   const employeeId = selected?.id || 0;
-  const [evaluation, occurrences, adjustments, weekEvaluations] = employeeId
-    ? await Promise.all([getWeeklyEvaluation(employeeId, week), listWeeklyErrors(employeeId, week), listWeeklyBonusAdjustments(employeeId, week), listWeeklyEvaluations([week], employeeIds)])
-    : [null, [], [], []];
+  const [evaluation, occurrences, adjustments, monthEvaluations] = await Promise.all([
+    employeeId ? getWeeklyEvaluation(employeeId, week) : Promise.resolve(null),
+    employeeId ? listWeeklyErrors(employeeId, week) : Promise.resolve([]),
+    employeeId ? listWeeklyBonusAdjustments(employeeId, week) : Promise.resolve([]),
+    listWeeklyEvaluations(weeks, visibleEmployees.map((employee) => employee.id)),
+  ]);
+  const progress = weeklyProgress(weeks, visibleEmployees, monthEvaluations);
+  const eligibleIds = new Set(employees.map((employee) => employee.id));
+  const weekEvaluations = monthEvaluations.filter((evaluation) => evaluation.week_start.trim() === week && eligibleIds.has(evaluation.employee_id));
   const evaluatorNames = isTeamScopedRole(user.role) ? (user.evaluator_name ? [user.evaluator_name] : []) : evaluators.map((employee) => employee.name);
   const selectedEvaluator = isTeamScopedRole(user.role)
     ? user.evaluator_name
@@ -62,20 +68,14 @@ export default async function EvaluationsPage({
   }));
   const monthlyImpact = monthlyOccurrenceImpact(occurrences);
   const adjustmentTotal = financialAdjustmentTotal(adjustments);
-  const completed = weekEvaluations.length;
+  const completed = progress[week].completed;
 
   return (
     <>
       <PageHeader step="Operação semanal" title={canEditEvaluations ? "Cockpit de avaliações" : "Consulta de avaliações"} subtitle={canEditEvaluations ? "Avalie, aplique regras e acompanhe o impacto sem sair da mesma tela." : "Consulte notas, justificativas, ocorrências e valores consolidados, sem alterar os lançamentos."} icon={ClipboardCheck} user={`${user.username} · ${userRoleLabel(user.role)}`} />
       <Notice success={params.success} error={params.error} />
 
-      <form method="get" className="filter-bar wrap">
-        <EvaluationWeekPicker key={week} week={week} />
-        <div className="field compact grow"><label htmlFor="evaluation-employee">Colaborador</label><select id="evaluation-employee" name="employee" defaultValue={employeeId}>{employees.map((employee) => <option value={employee.id} key={employee.id}>{employee.name} · {employee.sector}</option>)}</select></div>
-        <button className="button secondary" type="submit">Carregar</button>
-        <Link className="button ghost" href={`/api/export/avaliacoes?week=${week}`}><Download size={16} /> Planilha</Link>
-        <span className="filter-context">{completed}/{employees.length} concluídas</span>
-      </form>
+      <EvaluationWeekPicker key={`${week}:${employeeId}`} week={week} employeeId={employeeId} employees={employees.map(({ id, name, sector }) => ({ id, name, sector }))} progress={progress} />
 
       {!selected ? <div className="notice info">{isTeamScopedRole(user.role) ? "Nenhum funcionário ativo está vinculado à sua liderança." : "Cadastre ao menos um funcionário operacional ativo."}</div> : (
         <>

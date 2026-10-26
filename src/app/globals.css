@@ -191,6 +191,10 @@ small { line-height: 1.35; }
 .evaluation-week-option:has(:checked) svg { visibility: visible; }
 .evaluation-week-range { color: var(--muted); font-size: .72rem; font-variant-numeric: tabular-nums; }
 .evaluation-week-option:has(:checked) .evaluation-week-range { color: var(--blue-strong); }
+.evaluation-week-track { height: 4px; overflow: hidden; margin-top: 3px; border-radius: 4px; background: var(--line); }
+.evaluation-week-track > span { display: block; height: 100%; background: var(--blue); }
+.evaluation-week-track.complete > span { background: var(--green); }
+.evaluation-week-progress { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px; color: var(--muted); font-size: .68rem; font-variant-numeric: tabular-nums; }
 .sector-filter { position: relative; min-width: 220px !important; }
 .multi-select-control { position: relative; }
 .multi-select-control summary { min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink); background: white; font-size: .78rem; cursor: pointer; list-style: none; }
