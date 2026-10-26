@@ -8,6 +8,8 @@ A aplicação passou a ter um frontend e backend web em Next.js/TypeScript, exec
 
 - A connection string existe somente no servidor.
 - O cliente do PostgreSQL é criado no escopo do módulo, com `max: 1`, `prepare: false` e SSL obrigatório.
+- Na Vercel, use o Transaction pooler do Supabase (porta 6543). A aplicação converte automaticamente a porta 5432 do host `*.pooler.supabase.com` para 6543 nesse runtime, preservando o projeto e as credenciais. Conexões diretas e execução fora da Vercel permanecem como configuradas.
+- O cliente PostgreSQL é reutilizado no processo também em produção. O modo session pode esgotar o limite de clientes entre instâncias serverless (`EMAXCONNSESSION`), mesmo com `max: 1` por instância.
 - As Server Actions e rotas de exportação revalidam autenticação e autorização.
 - A sessão é um JWT `HS256` em cookie `HttpOnly`, `SameSite=Lax` e `Secure` em produção, com validade de oito horas.
 - A função de verificação aceita o formato legado `pbkdf2_sha256$600000$salt$digest`, evitando redefinição de senhas na virada.

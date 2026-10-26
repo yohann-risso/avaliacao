@@ -1,8 +1,12 @@
 import "server-only";
 
 import postgres from "postgres";
+import { databaseUrlForRuntime } from "@/lib/database-config";
 
-const configuredDatabaseUrl = process.env.DATABASE_URL || process.env.APP_DATABASE_URL || process.env.SUPABASE_DB_URL;
+const configuredDatabaseUrl = databaseUrlForRuntime(
+  process.env.DATABASE_URL || process.env.APP_DATABASE_URL || process.env.SUPABASE_DB_URL,
+  process.env.VERCEL === "1",
+);
 
 function missingDatabase(): never {
   throw new Error("Banco não configurado. Defina DATABASE_URL com a URL do pooler do Supabase.");
@@ -24,4 +28,4 @@ export const sql =
       })
     : (missingDatabase as unknown as ReturnType<typeof postgres>));
 
-if (process.env.NODE_ENV !== "production") globalDatabase.__avaliacaoSql = sql;
+globalDatabase.__avaliacaoSql = sql;
