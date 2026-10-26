@@ -95,6 +95,13 @@ export function isWeekAfterStart(startDate: string, weekStart: string): boolean 
   return week > mondayOf(start);
 }
 
+export function isWeekOnOrAfterStart(startDate: string, weekStart: string): boolean {
+  const start = parseIsoDate(startDate);
+  const week = parseIsoDate(weekStart);
+  if (!start || !week) return false;
+  return week >= start;
+}
+
 export function isWeekBeforeOrOnTermination(terminationDate: string, weekStart: string): boolean {
   if (!terminationDate) return true;
   const termination = parseIsoDate(terminationDate);
@@ -108,7 +115,7 @@ export function eligibleWeeks(
   weeks: string[],
 ): string[] {
   return weeks.filter(
-    (week) => isWeekAfterStart(hireDate, week) && isWeekBeforeOrOnTermination(terminationDate, week),
+    (week) => isWeekOnOrAfterStart(hireDate, week) && isWeekBeforeOrOnTermination(terminationDate, week),
   );
 }
 

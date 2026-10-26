@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import { currentMonth, dateBr, monthBr, normalizeMonday, todayBrazil, weeksForCompetencia } from "@/lib/dates";
 import { listActiveEmployees, listOccurrenceRowsForWeeks, listWeeklyEvaluations } from "@/lib/data";
-import { employeesVisibleTo } from "@/lib/employee-access";
+import { employeesEligibleForWeek, employeesVisibleTo } from "@/lib/employee-scope";
 import { brl, pct } from "@/lib/money";
 import { canEditEvaluationsRole, canViewReportsRole, userRoleLabel } from "@/lib/permissions";
 import { buildMonthlyReport } from "@/lib/report";
@@ -29,12 +29,21 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
     canViewReports ? buildMonthlyReport(month) : Promise.resolve(null),
   ]);
   const operators = employees.filter((employee) => !employee.is_leadership);
-  const focusEvaluatedIds = new Set(evaluations.filter((item) => String(item.week_start).trim() === focusWeek).map((item) => item.employee_id));
-  const pending = operators.filter((employee) => !focusEvaluatedIds.has(employee.id));
+  const eligibleOperatorIdsByWeek = new Map(weeks.map((week) => [
+    week,
+    new Set(employeesEligibleForWeek(operators, week).map((employee) => employee.id)),
+  ]));
+  const validEvaluations = evaluations.filter((item) => (
+    eligibleOperatorIdsByWeek.get(String(item.week_start).trim())?.has(item.employee_id)
+  ));
+  const focusEligibleIds = eligibleOperatorIdsByWeek.get(focusWeek) || new Set<number>();
+  const focusEvaluatedIds = new Set(validEvaluations.filter((item) => String(item.week_start).trim() === focusWeek).map((item) => item.employee_id));
+  const pending = operators.filter((employee) => focusEligibleIds.has(employee.id) && !focusEvaluatedIds.has(employee.id));
   const critical = occurrences.filter((item) => item.severity === "CRITICO" || item.error_type === "A01");
   const totalPoints = occurrences.reduce((sum, item) => sum + (getEvaluationRule(item.error_type)?.points || 0) * Number(item.qty || 0), 0);
-  const coverage = report?.coverage ?? (operators.length * weeks.length ? (evaluations.length / (operators.length * weeks.length)) * 100 : 0);
-  const weekCounts = weeks.map((week) => evaluations.filter((item) => String(item.week_start).trim() === week).length);
+  const weeklyExpected = [...eligibleOperatorIdsByWeek.values()].reduce((sum, ids) => sum + ids.size, 0);
+  const coverage = report?.coverage ?? (weeklyExpected ? (validEvaluations.length / weeklyExpected) * 100 : 0);
+  const weekCounts = weeks.map((week) => validEvaluations.filter((item) => String(item.week_start).trim() === week).length);
 
   return (
     <>
@@ -65,16 +74,17 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
         <article className="metric-card"><span className="metric-icon blue"><Users size={19} /></span><div><small>Equipe operacional</small><strong>{operators.length}</strong><p>{employees.filter((item) => item.is_leadership).length} na liderança</p></div></article>
         <article className="metric-card"><span className={`metric-icon ${pending.length ? "amber" : "green"}`}>{pending.length ? <CircleAlert size={19} /> : <CheckCircle2 size={19} />}</span><div><small>Pendentes na semana</small><strong>{pending.length}</strong><p>{focusEvaluatedIds.size} avaliações concluídas</p></div></article>
         <article className="metric-card"><span className={`metric-icon ${critical.length ? "red" : "green"}`}><TriangleAlert size={19} /></span><div><small>Ocorrências críticas</small><strong>{critical.length}</strong><p>{totalPoints.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} pontos no mês</p></div></article>
-        <article className="metric-card"><span className="metric-icon green"><Banknote size={19} /></span><div><small>{report ? "Prévia financeira" : "Avaliações do mês"}</small><strong>{report ? brl(report.total) : evaluations.length}</strong><p>{report ? "Inclui monitoria fixa" : `${weeks.length} semanas consideradas`}</p></div></article>
+        <article className="metric-card"><span className="metric-icon green"><Banknote size={19} /></span><div><small>{report ? "Prévia financeira" : "Avaliações do mês"}</small><strong>{report ? brl(report.total) : validEvaluations.length}</strong><p>{report ? "Inclui monitoria fixa" : `${weeks.length} semanas consideradas`}</p></div></article>
       </div>
 
       <div className="dashboard-grid section">
         <section className="panel span-2">
-          <div className="panel-head"><div><p className="eyebrow">Progresso</p><h2>Cadência das 4 semanas</h2></div><span className="badge">{evaluations.length} avaliações</span></div>
+          <div className="panel-head"><div><p className="eyebrow">Progresso</p><h2>Cadência das 4 semanas</h2></div><span className="badge">{validEvaluations.length} avaliações</span></div>
           <div className="week-progress-list">
             {weeks.map((week, index) => {
-              const value = operators.length ? Math.round((weekCounts[index] / operators.length) * 100) : 0;
-              return <div className="week-progress" key={week}><span className="week-index">S{index + 1}</span><div><strong>{dateBr(week)}</strong><span className="progress-track light"><span style={{ width: `${Math.min(100, value)}%` }} /></span></div><b>{weekCounts[index]}/{operators.length}</b><em className={`status-chip ${value >= 100 ? "success" : value ? "warning" : "neutral"}`}>{value >= 100 ? "Concluída" : value ? "Em curso" : "A iniciar"}</em></div>;
+              const expected = eligibleOperatorIdsByWeek.get(week)?.size || 0;
+              const value = expected ? Math.round((weekCounts[index] / expected) * 100) : 0;
+              return <div className="week-progress" key={week}><span className="week-index">S{index + 1}</span><div><strong>{dateBr(week)}</strong><span className="progress-track light"><span style={{ width: `${Math.min(100, value)}%` }} /></span></div><b>{weekCounts[index]}/{expected}</b><em className={`status-chip ${expected && value >= 100 ? "success" : value ? "warning" : "neutral"}`}>{expected && value >= 100 ? "Concluída" : value ? "Em curso" : "A iniciar"}</em></div>;
             })}
           </div>
         </section>

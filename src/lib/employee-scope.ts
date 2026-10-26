@@ -1,5 +1,5 @@
 import type { AppUser, Employee } from "@/lib/types";
-import { parseIsoDate } from "@/lib/dates";
+import { isWeekOnOrAfterStart, parseIsoDate } from "@/lib/dates";
 import { isTeamScopedRole } from "@/lib/permissions";
 
 function leadershipIdsVisibleTo(user: AppUser, employees: Employee[]): Set<number> {
@@ -38,7 +38,7 @@ export function employeesEligibleForWeek(employees: Employee[], weekStart: strin
   if (!week) return [];
   return employees.filter((employee) => {
     const hireDate = parseIsoDate(employee.hire_date);
-    return !hireDate || hireDate <= week;
+    return !hireDate || isWeekOnOrAfterStart(employee.hire_date, weekStart);
   });
 }
 
