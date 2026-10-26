@@ -7,6 +7,7 @@ import { pbkdf2Sync, randomBytes, timingSafeEqual } from "node:crypto";
 import { jwtVerify, SignJWT } from "jose";
 
 import { sql } from "@/lib/db";
+import { maintainDatabaseLifecycle } from "@/lib/database-lifecycle";
 import {
   canEditEvaluationsRole,
   canManageOrganizationRole,
@@ -95,6 +96,7 @@ async function sessionUserId(): Promise<number | null> {
 }
 
 export const currentUser = cache(async (): Promise<AppUser | null> => {
+  maintainDatabaseLifecycle();
   const userId = await sessionUserId();
   if (!userId) return null;
   const rows = await sql<AppUser[]>`

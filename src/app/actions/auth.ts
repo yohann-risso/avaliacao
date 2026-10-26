@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { createSession, clearSession, hashPassword, normalizeUsername, verifyPassword } from "@/lib/auth";
 import { sql } from "@/lib/db";
+import { maintainDatabaseLifecycle } from "@/lib/database-lifecycle";
 import { loginUserCount } from "@/lib/data";
 import { publicError, raw, text } from "@/lib/action-utils";
 import type { UserRole } from "@/lib/types";
@@ -11,6 +12,7 @@ import type { UserRole } from "@/lib/types";
 export type AuthState = { error: string };
 
 export async function loginAction(_state: AuthState, formData: FormData): Promise<AuthState> {
+  maintainDatabaseLifecycle();
   const destination = "/visao-geral";
   try {
     const username = normalizeUsername(text(formData, "username"));
@@ -39,6 +41,7 @@ export async function loginAction(_state: AuthState, formData: FormData): Promis
 }
 
 export async function createInitialAdminAction(_state: AuthState, formData: FormData): Promise<AuthState> {
+  maintainDatabaseLifecycle();
   try {
     const username = normalizeUsername(text(formData, "username"));
     const password = raw(formData, "password");

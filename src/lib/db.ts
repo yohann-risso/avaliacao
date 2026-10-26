@@ -2,6 +2,7 @@ import "server-only";
 
 import postgres from "postgres";
 import { databaseUrlForRuntime } from "@/lib/database-config";
+import { DATABASE_IDLE_SECONDS } from "@/lib/database-lifecycle";
 
 const configuredDatabaseUrl = databaseUrlForRuntime(
   process.env.DATABASE_URL || process.env.APP_DATABASE_URL || process.env.SUPABASE_DB_URL,
@@ -24,7 +25,8 @@ export const sql =
         prepare: false,
         ssl: "require",
         connect_timeout: 15,
-        idle_timeout: 20,
+        idle_timeout: DATABASE_IDLE_SECONDS,
+        max_lifetime: 60,
       })
     : (missingDatabase as unknown as ReturnType<typeof postgres>));
 
