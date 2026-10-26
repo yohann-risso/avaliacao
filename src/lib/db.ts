@@ -17,17 +17,23 @@ const globalDatabase = globalThis as typeof globalThis & {
   __avaliacaoSql?: ReturnType<typeof postgres>;
 };
 
+const databaseOptions = {
+  max: 1,
+  // Supavisor transaction pooling does not support query pipelining.
+  // postgres.js counts queued queries separately from the active query, so 0
+  // prevents sending a second query before the first receives ReadyForQuery.
+  max_pipeline: 0,
+  prepare: false,
+  ssl: "require" as const,
+  connect_timeout: 15,
+  idle_timeout: DATABASE_IDLE_SECONDS,
+  max_lifetime: 60,
+};
+
 export const sql =
   globalDatabase.__avaliacaoSql ??
   (configuredDatabaseUrl
-    ? postgres(configuredDatabaseUrl, {
-        max: 1,
-        prepare: false,
-        ssl: "require",
-        connect_timeout: 15,
-        idle_timeout: DATABASE_IDLE_SECONDS,
-        max_lifetime: 60,
-      })
+    ? postgres(configuredDatabaseUrl, databaseOptions)
     : (missingDatabase as unknown as ReturnType<typeof postgres>));
 
 globalDatabase.__avaliacaoSql = sql;
