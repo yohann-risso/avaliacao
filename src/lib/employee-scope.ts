@@ -1,4 +1,5 @@
 import type { AppUser, Employee } from "@/lib/types";
+import { parseIsoDate } from "@/lib/dates";
 import { isTeamScopedRole } from "@/lib/permissions";
 
 function leadershipIdsVisibleTo(user: AppUser, employees: Employee[]): Set<number> {
@@ -30,6 +31,15 @@ export function employeesVisibleTo(user: AppUser, employees: Employee[]): Employ
     && employee.evaluator_employee_id !== null
     && leadershipIds.has(employee.evaluator_employee_id)
   ));
+}
+
+export function employeesEligibleForWeek(employees: Employee[], weekStart: string): Employee[] {
+  const week = parseIsoDate(weekStart);
+  if (!week) return [];
+  return employees.filter((employee) => {
+    const hireDate = parseIsoDate(employee.hire_date);
+    return !hireDate || hireDate <= week;
+  });
 }
 
 export function evaluatorsVisibleTo(user: AppUser, employees: Employee[]): Employee[] {

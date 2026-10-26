@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { employeesVisibleTo, evaluatorsVisibleTo } from "@/lib/employee-scope";
+import { employeesEligibleForWeek, employeesVisibleTo, evaluatorsVisibleTo } from "@/lib/employee-scope";
 import type { AppUser, Employee } from "@/lib/types";
 
 const employees = [
@@ -51,5 +51,22 @@ describe("employeesVisibleTo", () => {
   it("não mostra funcionários quando o vínculo do login está ausente ou inativo", () => {
     expect(employeesVisibleTo(user({ evaluator_employee_id: null, evaluator_name: "" }), employees)).toEqual([]);
     expect(employeesVisibleTo(user({ evaluator_name: "" }), employees)).toEqual([]);
+  });
+});
+
+describe("employeesEligibleForWeek", () => {
+  const datedEmployees = [
+    { id: 1, hire_date: "2026-10-05" },
+    { id: 2, hire_date: "2026-10-12" },
+    { id: 3, hire_date: "2026-10-13" },
+    { id: 4, hire_date: "" },
+  ] as Employee[];
+
+  it("oculta somente quem foi contratado depois da data da semana", () => {
+    expect(employeesEligibleForWeek(datedEmployees, "2026-10-12").map((employee) => employee.id)).toEqual([1, 2, 4]);
+  });
+
+  it("não retorna funcionários quando a semana é inválida", () => {
+    expect(employeesEligibleForWeek(datedEmployees, "semana-invalida")).toEqual([]);
   });
 });

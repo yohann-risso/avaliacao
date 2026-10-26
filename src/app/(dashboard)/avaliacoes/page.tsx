@@ -14,7 +14,7 @@ import { getWeeklyEvaluation, listActiveEmployees, listEvaluators, listWeeklyBon
 import { brl, financialAdjustmentTotal, weeklyPaymentBreakdown } from "@/lib/money";
 import { canEditEvaluationsRole, isTeamScopedRole, userRoleLabel } from "@/lib/permissions";
 import { aggregateOccurrenceQuantities, getEvaluationRule, monthlyOccurrenceImpact, weeklyOccurrenceImpact } from "@/lib/rules";
-import { employeesVisibleTo } from "@/lib/employee-access";
+import { employeesEligibleForWeek, employeesVisibleTo } from "@/lib/employee-scope";
 
 function safeWeek(value?: string): string {
   try { return normalizeMonday(value || todayBrazil()); } catch { return normalizeMonday(todayBrazil()); }
@@ -31,9 +31,12 @@ export default async function EvaluationsPage({
     listActiveEmployees(),
     user.role === "admin" ? listEvaluators() : Promise.resolve([]),
   ]);
-  const employees = employeesVisibleTo(user, allEmployees).filter((employee) => !employee.is_leadership);
-  const employeeIds = employees.map((employee) => employee.id);
   const week = safeWeek(params.week);
+  const employees = employeesEligibleForWeek(
+    employeesVisibleTo(user, allEmployees).filter((employee) => !employee.is_leadership),
+    week,
+  );
+  const employeeIds = employees.map((employee) => employee.id);
   const requestedEmployee = Number(params.employee);
   const selected = employees.find((employee) => employee.id === requestedEmployee) || employees[0];
   const employeeId = selected?.id || 0;

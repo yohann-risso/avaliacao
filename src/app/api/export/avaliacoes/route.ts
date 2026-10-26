@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { requireUser } from "@/lib/auth";
 import { normalizeMonday, todayBrazil } from "@/lib/dates";
 import { listActiveEmployees, listWeeklyEvaluations } from "@/lib/data";
-import { employeesVisibleTo } from "@/lib/employee-access";
+import { employeesEligibleForWeek, employeesVisibleTo } from "@/lib/employee-scope";
 import { EVALUATION_RULES } from "@/lib/rules";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +13,10 @@ export async function GET(request: Request) {
   const requested = new URL(request.url).searchParams.get("week") || todayBrazil();
   const week = normalizeMonday(requested);
   const allEmployees = await listActiveEmployees();
-  const employees = employeesVisibleTo(user, allEmployees).filter((item) => !item.is_leadership);
+  const employees = employeesEligibleForWeek(
+    employeesVisibleTo(user, allEmployees).filter((item) => !item.is_leadership),
+    week,
+  );
   const evaluations = await listWeeklyEvaluations([week], employees.map((employee) => employee.id));
   const byEmployee = new Map(evaluations.map((item) => [item.employee_id, item]));
   const workbook = new ExcelJS.Workbook();
