@@ -24,7 +24,7 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
   const user = await requirePeopleManager();
   await requireManagedEmployeeAccess(user, employeeId);
   const [employee, allEmployees, evaluations, occurrences, adjustments, report] = await Promise.all([
-    getEmployee(employeeId), listEmployees(true), listRecentWeeklyEvaluations(employeeId), listRecentWeeklyErrors(employeeId), listRecentBonusAdjustments(employeeId), buildMonthlyReport(month),
+    getEmployee(employeeId), listEmployees(true), listRecentWeeklyEvaluations(employeeId), listRecentWeeklyErrors(employeeId), listRecentBonusAdjustments(employeeId), buildMonthlyReport(month, user),
   ]);
   if (!employee) notFound();
   const evaluators = evaluatorsVisibleTo(user, allEmployees);

@@ -13,7 +13,7 @@ export function canManageOrganizationRole(role: UserRole): boolean {
 }
 
 export function canViewReportsRole(role: UserRole): boolean {
-  return role === "admin" || role === "rh";
+  return role === "admin" || role === "rh" || role === "supervisor" || role === "avaliador";
 }
 
 export function canEditEvaluationsRole(role: UserRole): boolean {

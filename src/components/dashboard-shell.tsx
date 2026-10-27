@@ -19,7 +19,7 @@ import {
 
 import { logoutAction } from "@/app/actions/auth";
 import type { DashboardStats } from "@/lib/data";
-import { canManagePeopleRole, canViewReportsRole, userRoleLabel } from "@/lib/permissions";
+import { canManageOrganizationRole, canManagePeopleRole, canViewReportsRole, userRoleLabel } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
 
 type NavItem = {
@@ -30,6 +30,7 @@ type NavItem = {
   adminOnly?: boolean;
   peopleManagerOnly?: boolean;
   reportViewerOnly?: boolean;
+  organizationManagerOnly?: boolean;
 };
 
 const mainNavigation: NavItem[] = [
@@ -42,7 +43,7 @@ const mainNavigation: NavItem[] = [
 
 const adminNavigation: NavItem[] = [
   { href: "/usuarios", label: "Usuários", detail: "Acessos e perfis", icon: ShieldCheck, adminOnly: true },
-  { href: "/regras", label: "Regras", detail: "Tabela corporativa", icon: BookOpenCheck, reportViewerOnly: true },
+  { href: "/regras", label: "Regras", detail: "Tabela corporativa", icon: BookOpenCheck, organizationManagerOnly: true },
 ];
 
 export function DashboardShell({
@@ -63,10 +64,12 @@ export function DashboardShell({
     (!item.adminOnly || user.role === "admin")
     && (!item.peopleManagerOnly || canManagePeopleRole(user.role))
     && (!item.reportViewerOnly || canViewReportsRole(user.role))
+    && (!item.organizationManagerOnly || canManageOrganizationRole(user.role))
   ));
   const visibleAdmin = adminNavigation.filter((item) => (
     (!item.adminOnly || user.role === "admin")
     && (!item.reportViewerOnly || canViewReportsRole(user.role))
+    && (!item.organizationManagerOnly || canManageOrganizationRole(user.role))
   ));
 
   function navLink(item: NavItem) {

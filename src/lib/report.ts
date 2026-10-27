@@ -3,8 +3,11 @@ import "server-only";
 import { MONITOR_FIXED_VALUE, WEEKLY_CRITERIA } from "@/lib/constants";
 import { eligibleWeeks, isWeekAfterStart, monthReferenceDate, weeksForCompetencia } from "@/lib/dates";
 import { listBonusAdjustmentsForWeeks, listEmployees, listWeeklyErrorsForWeeks, listWeeklyEvaluations } from "@/lib/data";
+import { employeesVisibleTo } from "@/lib/employee-scope";
+import { isTeamScopedRole } from "@/lib/permissions";
 import { financialAdjustmentTotal, monthlyBasePayment, monitorPayment, tenurePayment, totalAfterFinancialAdjustments } from "@/lib/money";
 import { summarizeReportRows } from "@/lib/report-selection";
+import type { AppUser } from "@/lib/types";
 
 export type ReportRow = {
   employeeId: number;
@@ -57,14 +60,19 @@ export type MonthlyReport = {
 
 export async function buildMonthlyReport(
   month: string,
+  user: AppUser,
   { includeInactive = true }: { includeInactive?: boolean } = {},
 ): Promise<MonthlyReport> {
   const weeks = weeksForCompetencia(month);
-  const [employees, weekly, errors, adjustments] = await Promise.all([
-    listEmployees(includeInactive),
-    listWeeklyEvaluations(weeks),
-    listWeeklyErrorsForWeeks(weeks),
-    listBonusAdjustmentsForWeeks(weeks),
+  const allEmployees = await listEmployees(includeInactive);
+  const employees = employeesVisibleTo(user, allEmployees);
+  const scopedEmployeeIds = isTeamScopedRole(user.role)
+    ? employees.map((employee) => employee.id)
+    : undefined;
+  const [weekly, errors, adjustments] = await Promise.all([
+    listWeeklyEvaluations(weeks, scopedEmployeeIds),
+    listWeeklyErrorsForWeeks(weeks, scopedEmployeeIds),
+    listBonusAdjustmentsForWeeks(weeks, scopedEmployeeIds),
   ]);
   const weeklyByEmployee = new Map<number, typeof weekly>();
   for (const item of weekly) {

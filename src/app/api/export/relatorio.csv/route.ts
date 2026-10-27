@@ -7,12 +7,12 @@ import { buildMonthlyReport } from "@/lib/report";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  await requireReportViewer();
+  const user = await requireReportViewer();
   const searchParams = new URL(request.url).searchParams;
   const requested = searchParams.get("month") || "";
   const month = /^\d{4}-\d{2}$/.test(requested) ? requested : currentMonth();
   const includeInactive = searchParams.get("inactive") === "1";
-  const report = await buildMonthlyReport(month, { includeInactive });
+  const report = await buildMonthlyReport(month, user, { includeInactive });
   const sectors = normalizeSectorSelection(searchParams.getAll("sector"));
   const rows = filterReportRows(report.rows, sectors, searchParams.get("q") || "");
   return new Response(buildReportCsv(rows), {

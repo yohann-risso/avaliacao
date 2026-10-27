@@ -17,15 +17,15 @@ describe("permissões por perfil", () => {
     expect(canManagePeopleRole("avaliador")).toBe(false);
   });
 
-  it("dá ao RH visão organizacional e relatórios, mas mantém avaliações somente para consulta", () => {
+  it("dá ao RH visão organizacional, mantém avaliações somente para consulta e libera o fechamento para todos os perfis", () => {
     expect(canManageOrganizationRole("admin")).toBe(true);
     expect(canManageOrganizationRole("rh")).toBe(true);
     expect(canManageOrganizationRole("supervisor")).toBe(false);
     expect(canManageOrganizationRole("avaliador")).toBe(false);
     expect(canViewReportsRole("admin")).toBe(true);
     expect(canViewReportsRole("rh")).toBe(true);
-    expect(canViewReportsRole("supervisor")).toBe(false);
-    expect(canViewReportsRole("avaliador")).toBe(false);
+    expect(canViewReportsRole("supervisor")).toBe(true);
+    expect(canViewReportsRole("avaliador")).toBe(true);
     expect(canEditEvaluationsRole("rh")).toBe(false);
     expect(canEditEvaluationsRole("admin")).toBe(true);
     expect(canEditEvaluationsRole("supervisor")).toBe(true);

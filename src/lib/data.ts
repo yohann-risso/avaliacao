@@ -115,13 +115,16 @@ export async function listWeeklyErrors(employeeId: number, weekStart: string): P
   `;
 }
 
-export async function listWeeklyErrorsForWeeks(weeks: string[]): Promise<WeeklyError[]> {
+export async function listWeeklyErrorsForWeeks(weeks: string[], employeeIds?: number[]): Promise<WeeklyError[]> {
   if (!weeks.length) return [];
+  if (employeeIds && !employeeIds.length) return [];
+  const employeeFilter = employeeIds?.length ? sql`and employee_id in ${sql(employeeIds)}` : sql``;
   return sql<WeeklyError[]>`
     select id, employee_id, trim(week_start) as week_start, role_snapshot, error_type, severity,
       qty, coalesce(notes, '') as notes, created_at
     from weekly_errors
     where trim(week_start) in ${sql(weeks)}
+    ${employeeFilter}
     order by week_start, employee_id, id
   `;
 }

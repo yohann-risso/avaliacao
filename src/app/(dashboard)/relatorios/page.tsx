@@ -26,7 +26,7 @@ export default async function ReportsPage({
   const requestedMonth = firstSearchParam(params.month);
   const month = /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : currentMonth();
   const includeInactive = firstSearchParam(params.inactive) === "1";
-  const report = await buildMonthlyReport(month, { includeInactive });
+  const report = await buildMonthlyReport(month, user, { includeInactive });
   const sectors = [...new Set(report.rows.map((row) => row.sector))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   const selectedSectors = normalizeSectorSelection(params.sector).filter((sector) => sectors.includes(sector));
   const query = firstSearchParam(params.q).trim();

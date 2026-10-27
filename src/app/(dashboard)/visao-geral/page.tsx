@@ -26,7 +26,7 @@ export default async function OverviewPage({ searchParams }: { searchParams: Pro
   const [evaluations, occurrences, report] = await Promise.all([
     listWeeklyEvaluations(weeks, employeeIds),
     listOccurrenceRowsForWeeks(weeks, employeeIds),
-    canViewReports ? buildMonthlyReport(month) : Promise.resolve(null),
+    canViewReports ? buildMonthlyReport(month, user) : Promise.resolve(null),
   ]);
   const operators = employees.filter((employee) => !employee.is_leadership);
   const eligibleOperatorIdsByWeek = new Map(weeks.map((week) => [
