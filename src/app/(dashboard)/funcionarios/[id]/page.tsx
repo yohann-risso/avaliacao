@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Banknote, CalendarClock, ClipboardCheck, Pencil, Star, TriangleAlert, UserRound } from "lucide-react";
+import { ArrowLeft, Banknote, CalendarClock, ClipboardCheck, Download, Pencil, Star, TriangleAlert, UserRound } from "lucide-react";
 
 import { toggleEmployeeAction, updateEmployeeAction } from "@/app/actions/employees";
 import { EmployeeFields } from "@/components/employee-fields";
@@ -16,11 +16,13 @@ import { canEditEvaluationsRole, canManageOrganizationRole, userRoleLabel } from
 import { buildMonthlyReport } from "@/lib/report";
 import { getEvaluationRule } from "@/lib/rules";
 
-export default async function EmployeeProfilePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EmployeeProfilePage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ month?: string | string[] }> }) {
   const { id } = await params;
   const employeeId = Number(id);
   if (!Number.isInteger(employeeId) || employeeId < 1) notFound();
-  const month = currentMonth();
+  const query = await searchParams;
+  const requestedMonth = Array.isArray(query.month) ? query.month[0] : query.month;
+  const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth || "") ? requestedMonth! : currentMonth();
   const user = await requirePeopleManager();
   await requireManagedEmployeeAccess(user, employeeId);
   const [employee, allEmployees, evaluations, occurrences, adjustments, report] = await Promise.all([
@@ -53,6 +55,15 @@ export default async function EmployeeProfilePage({ params }: { params: Promise<
         <span className="profile-avatar">{employee.name.slice(0, 2).toUpperCase()}</span>
         <div><div className="actions"><span className={`status-chip ${employee.active ? "success" : "danger"}`}>{employee.active ? "Ativo" : "Inativo"}</span>{employee.is_monitor ? <span className="status-chip success">Monitor</span> : null}{employee.is_leadership ? <span className="status-chip warning">Coord./Sup.</span> : null}</div><h2>{employee.name}</h2><p>Admissão em {dateBr(employee.hire_date)} · {employee.sector}</p></div>
         <div className="profile-quick-action"><Link className="button primary" href={`/avaliacoes?employee=${employee.id}`}><ClipboardCheck size={16} /> {canEditEvaluationsRole(user.role) ? "Abrir avaliação" : "Consultar avaliações"}</Link></div>
+      </section>
+
+      <section className="panel section">
+        <div className="panel-head"><div><p className="eyebrow">Relatório individual</p><h2>Fechamento de {monthBr(month)}</h2><p>Avaliações, observações, justificativas, ocorrências e ajustes financeiros da competência.</p></div></div>
+        <form method="get" className="filter-bar wrap">
+          <div className="field compact"><label htmlFor="profile-month">Fechamento</label><input id="profile-month" type="month" name="month" defaultValue={month} required /></div>
+          <button className="button secondary" type="submit">Selecionar fechamento</button>
+          <button className="button primary" type="submit" formAction="/api/export/colaborador-pdf" name="employee" value={employee.id}><Download size={16} /> Baixar relatório em PDF</button>
+        </form>
       </section>
 
       <div className="metric-grid section">
