@@ -6,13 +6,13 @@ import { toggleEmployeeAction, updateEmployeeAction } from "@/app/actions/employ
 import { EmployeeFields } from "@/components/employee-fields";
 import { PageHeader } from "@/components/page-header";
 import { SubmitButton } from "@/components/submit-button";
-import { requirePeopleManager } from "@/lib/auth";
+import { requireReportViewer } from "@/lib/auth";
 import { WEEKLY_CRITERIA } from "@/lib/constants";
 import { currentMonth, dateBr, monthBr } from "@/lib/dates";
 import { getEmployee, listEmployees, listRecentBonusAdjustments, listRecentWeeklyErrors, listRecentWeeklyEvaluations } from "@/lib/data";
-import { evaluatorsVisibleTo, requireManagedEmployeeAccess } from "@/lib/employee-access";
+import { evaluatorsVisibleTo, requireEmployeeReportAccess } from "@/lib/employee-access";
 import { brl, pct, totalAfterFinancialAdjustments, weeklyPaymentBreakdown } from "@/lib/money";
-import { canEditEvaluationsRole, canManageOrganizationRole, userRoleLabel } from "@/lib/permissions";
+import { canEditEvaluationsRole, canManageOrganizationRole, canManagePeopleRole, userRoleLabel } from "@/lib/permissions";
 import { buildMonthlyReport } from "@/lib/report";
 import { getEvaluationRule } from "@/lib/rules";
 
@@ -23,8 +23,9 @@ export default async function EmployeeProfilePage({ params, searchParams }: { pa
   const query = await searchParams;
   const requestedMonth = Array.isArray(query.month) ? query.month[0] : query.month;
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth || "") ? requestedMonth! : currentMonth();
-  const user = await requirePeopleManager();
-  await requireManagedEmployeeAccess(user, employeeId);
+  const user = await requireReportViewer();
+  await requireEmployeeReportAccess(user, employeeId);
+  const canManage = canManagePeopleRole(user.role);
   const [employee, allEmployees, evaluations, occurrences, adjustments, report] = await Promise.all([
     getEmployee(employeeId), listEmployees(true), listRecentWeeklyEvaluations(employeeId), listRecentWeeklyErrors(employeeId), listRecentBonusAdjustments(employeeId), buildMonthlyReport(month, user),
   ]);
@@ -48,7 +49,7 @@ export default async function EmployeeProfilePage({ params, searchParams }: { pa
 
   return (
     <>
-      <Link className="back-link" href="/funcionarios"><ArrowLeft size={15} /> Voltar para pessoas</Link>
+      <Link className="back-link" href={canManage ? "/funcionarios" : `/relatorios?month=${month}`}><ArrowLeft size={15} /> {canManage ? "Voltar para pessoas" : "Voltar para fechamento"}</Link>
       <PageHeader step={`Perfil #${employee.id}`} title={employee.name} subtitle={`${employee.sector} · ${employee.role}`} icon={UserRound} user={`${userRoleLabel(user.role)} · ${user.username}`} />
 
       <section className="profile-hero">
@@ -96,13 +97,13 @@ export default async function EmployeeProfilePage({ params, searchParams }: { pa
         </section>
       </div>
 
-      <section className="section">
+      {canManage ? <section className="section">
         <details className="panel profile-edit-panel">
           <summary><span className="metric-icon blue"><Pencil size={18} /></span><span><strong>Editar dados e elegibilidade</strong><small>Altere função, datas, monitoria ou liderança.</small></span></summary>
           <form action={updateEmployeeAction} className="details-form"><EmployeeFields employee={employee} evaluators={evaluators} allowUnlinked={canManageOrganizationRole(user.role)} /><div className="actions"><SubmitButton>Salvar alterações</SubmitButton></div></form>
           <form action={toggleEmployeeAction} className="danger-zone"><input type="hidden" name="id" value={employee.id} /><input type="hidden" name="active" value={employee.active ? 0 : 1} /><div><strong>{employee.active ? "Desativar colaborador" : "Reativar colaborador"}</strong><p>{employee.active ? "O histórico será preservado e o colaborador sairá das filas futuras." : "O colaborador voltará às filas de avaliação."}</p></div><SubmitButton className={employee.active ? "button danger" : "button secondary"}>{employee.active ? "Desativar" : "Reativar"}</SubmitButton></form>
         </details>
-      </section>
+      </section> : null}
     </>
   );
 }

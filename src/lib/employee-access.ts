@@ -1,7 +1,7 @@
 import "server-only";
 
 import { sql } from "@/lib/db";
-import { canManagePeopleRole, isTeamScopedRole } from "@/lib/permissions";
+import { canManagePeopleRole, canViewReportsRole, isTeamScopedRole } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
 
 export { employeesVisibleTo, evaluatorsVisibleTo } from "@/lib/employee-scope";
@@ -92,6 +92,26 @@ export async function requireEmployeesAccess(user: AppUser, employeeIds: number[
   const allowedIds = new Set(rows.map((row) => row.id));
   const invalidId = employeeIds.find((employeeId) => !allowedIds.has(employeeId));
   if (invalidId) throw new Error(`O funcionário #${invalidId} está inativo, não é avaliável ou não está vinculado ao seu avaliador.`);
+}
+
+export async function requireEmployeeReportAccess(
+  user: AppUser,
+  employeeId: number,
+): Promise<{ id: number; role: string }> {
+  if (!canViewReportsRole(user.role)) throw new Error("Seu perfil não permite consultar relatórios.");
+  assertActiveEvaluatorLink(user);
+  const evaluatorFilter = isTeamScopedRole(user.role)
+    ? evaluatorHierarchyFilter(Number(user.evaluator_employee_id))
+    : sql``;
+  const rows = await sql<{ id: number; role: string }[]>`
+    select id, role
+    from employees
+    where id = ${employeeId}
+      ${evaluatorFilter}
+    limit 1
+  `;
+  if (!rows[0]) throw new Error("A pessoa selecionada não pertence à sua equipe.");
+  return rows[0];
 }
 
 export async function requireManagedEmployeeAccess(

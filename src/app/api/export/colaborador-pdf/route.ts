@@ -1,14 +1,14 @@
-import { requirePeopleManager } from "@/lib/auth";
+import { requireReportViewer } from "@/lib/auth";
 import { getEmployee, listBonusAdjustmentsForWeeks, listWeeklyErrorsForWeeks, listWeeklyEvaluations } from "@/lib/data";
 import { weeksForCompetencia } from "@/lib/dates";
-import { requireManagedEmployeeAccess } from "@/lib/employee-access";
+import { requireEmployeeReportAccess } from "@/lib/employee-access";
 import { buildEmployeeReportPdf } from "@/lib/employee-report-pdf";
 import { buildMonthlyReport } from "@/lib/report";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  const user = await requirePeopleManager();
+  const user = await requireReportViewer();
   const params = new URL(request.url).searchParams;
   const employeeId = Number(params.get("employee"));
   const month = params.get("month") || "";
@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "Colaborador ou fechamento inválido." }, { status: 400 });
   }
   try {
-    await requireManagedEmployeeAccess(user, employeeId);
+    await requireEmployeeReportAccess(user, employeeId);
   } catch {
     return Response.json({ error: "Colaborador indisponível para seu perfil." }, { status: 403 });
   }
