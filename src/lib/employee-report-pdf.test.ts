@@ -46,7 +46,44 @@ describe("relatório individual em PDF", () => {
     expect(body.replace(/\s+/g, " ").match(/Observações detalhadas para revisão\./g)).toHaveLength(350);
     for (const [value, options] of draw.mock.calls) {
       expect(options!.y).toBeGreaterThanOrEqual(24);
-      expect(options!.x! + options!.font!.widthOfTextAtSize(value, options!.size!)).toBeLessThanOrEqual(556);
+      expect(options!.x).toBeGreaterThanOrEqual(36);
+      expect(options!.x! + options!.font!.widthOfTextAtSize(value, options!.size!)).toBeLessThanOrEqual(559.29);
     }
+  });
+
+  it("continua justificativas extensas nas tabelas, repete os cabeçalhos e preserva todas as palavras", async () => {
+    const draw = vi.spyOn(PDFPage.prototype, "drawText");
+    const rectangles = vi.spyOn(PDFPage.prototype, "drawRectangle");
+    const input = fixture();
+    input.evaluations[0].qualidade_just = `${"REGISTROINTEGRAL ".repeat(900)}FIM DA JUSTIFICATIVA`;
+    input.occurrences[0].notes = `${"OCORRENCIACOMPLETA ".repeat(350)}FIM DA OCORRÊNCIA`;
+    input.adjustments[0].description = `${"AJUSTECOMPLETO ".repeat(250)}FIM DO AJUSTE`;
+    const bytes = await buildEmployeeReportPdf(input);
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBeGreaterThan(4);
+    const text = draw.mock.calls.map(([value]) => value).join(" ");
+    expect(text.match(/REGISTROINTEGRAL/g)).toHaveLength(900);
+    expect(text.match(/OCORRENCIACOMPLETA/g)).toHaveLength(350);
+    expect(text.match(/AJUSTECOMPLETO/g)).toHaveLength(250);
+    expect(text).toContain("FIM DA JUSTIFICATIVA");
+    expect(text).toContain("FIM DA OCORRÊNCIA");
+    expect(text).toContain("FIM DO AJUSTE");
+    expect(draw.mock.calls.filter(([value]) => value === "Justificativa").length).toBeGreaterThan(1);
+    for (const [options] of rectangles.mock.calls) {
+      expect(options!.y).toBeGreaterThanOrEqual(52);
+      expect(options!.x! + options!.width!).toBeLessThanOrEqual(559.29);
+    }
+  });
+
+  it("mantém notas de 100% com justificativa e separa o consolidado dos registros", async () => {
+    const draw = vi.spyOn(PDFPage.prototype, "drawText");
+    const input = fixture();
+    input.evaluations[0].qualidade_pct = 100;
+    input.evaluations[0].qualidade_just = "Justificativa positiva preservada";
+    const bytes = await buildEmployeeReportPdf(input);
+    const text = draw.mock.calls.map(([value]) => value).join(" ");
+    expect(text).toContain("Justificativa positiva preservada");
+    expect(text).toContain("Avaliações por semana");
+    expect(text).toContain("Registros e justificativas");
+    expect((await PDFDocument.load(bytes)).getPageCount()).toBe(2);
   });
 });
